@@ -14,16 +14,22 @@ import {
   Edit3,
   Check,
   X,
+  FileText,
+  Compass,
+  Box,
+  BookOpen,
+  LogIn,
+  LogOut,
 } from 'lucide-react';
-import { ChatThread, ProjectItem } from '../types/claude';
+import { ChatThread, ProjectItem, WorkspaceSection } from '../types/claude';
 import { filterThreads } from '../utils/claudeLogic';
 import { ClaudeSunburstIcon } from './ClaudeIcon';
 
 interface SidebarProps {
   isOpen: boolean;
   onToggleOpen: () => void;
-  activeSection: 'chat' | 'projects' | 'artifacts';
-  onSelectSection: (section: 'chat' | 'projects' | 'artifacts') => void;
+  activeSection: WorkspaceSection;
+  onSelectSection: (section: WorkspaceSection) => void;
   threads: ChatThread[];
   activeThreadId: string | null;
   onSelectThread: (threadId: string) => void;
@@ -37,6 +43,11 @@ interface SidebarProps {
   darkMode: boolean;
   onToggleDarkMode: () => void;
   totalArtifactsCount: number;
+  pdfDocsCount: number;
+  userEmail?: string | null;
+  userDisplayName?: string | null;
+  onSignIn?: () => void;
+  onSignOut?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -57,6 +68,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   darkMode,
   onToggleDarkMode,
   totalArtifactsCount,
+  pdfDocsCount,
+  userEmail,
+  userDisplayName,
+  onSignIn,
+  onSignOut,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
@@ -86,7 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         aria-label="Collapsed Workspace Navigation"
         className="w-14 shrink-0 h-screen flex flex-col items-center justify-between py-3 bg-[#F3F1EA] dark:bg-[#141413] border-r border-[#E5E2D9] dark:border-[#2C2B28] select-none"
       >
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-2.5">
           <button
             type="button"
             onClick={onToggleOpen}
@@ -105,6 +121,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="w-9 h-9 rounded-lg flex items-center justify-center bg-[#C96442] text-white hover:bg-[#B55535] transition-colors"
           >
             <Plus className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectSection('studio')}
+            aria-label="PDF & Media Studio"
+            title="PDF & Media Studio"
+            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+              activeSection === 'studio'
+                ? 'bg-[#E5E1D6] dark:bg-[#2A2926] text-[#191918] dark:text-[#ECEAE2]'
+                : 'text-[#5A5955] dark:text-[#A3A19A] hover:bg-[#E7E4DA] dark:hover:bg-[#232220]'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectSection('fable')}
+            aria-label="Fable & Free APIs"
+            title="Fable & Free APIs"
+            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+              activeSection === 'fable'
+                ? 'bg-[#E5E1D6] dark:bg-[#2A2926] text-[#191918] dark:text-[#ECEAE2]'
+                : 'text-[#5A5955] dark:text-[#A3A19A] hover:bg-[#E7E4DA] dark:hover:bg-[#232220]'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
           </button>
 
           <button
@@ -133,6 +177,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }`}
           >
             <Layers className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectSection('maps')}
+            aria-label="Maps Explorer"
+            title="Maps Explorer"
+            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+              activeSection === 'maps'
+                ? 'bg-[#E5E1D6] dark:bg-[#2A2926] text-[#191918] dark:text-[#ECEAE2]'
+                : 'text-[#5A5955] dark:text-[#A3A19A] hover:bg-[#E7E4DA] dark:hover:bg-[#232220]'
+            }`}
+          >
+            <Compass className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectSection('spatial3d')}
+            aria-label="3D Spatial & Game"
+            title="3D Spatial & Game"
+            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+              activeSection === 'spatial3d'
+                ? 'bg-[#E5E1D6] dark:bg-[#2A2926] text-[#191918] dark:text-[#ECEAE2]'
+                : 'text-[#5A5955] dark:text-[#A3A19A] hover:bg-[#E7E4DA] dark:hover:bg-[#232220]'
+            }`}
+          >
+            <Box className="w-4 h-4" />
           </button>
         </div>
 
@@ -195,6 +267,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <nav aria-label="Workspace views" className="px-3 space-y-0.5 mb-3">
         <button
           type="button"
+          onClick={() => onSelectSection('studio')}
+          className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            activeSection === 'studio'
+              ? 'bg-[#E5E1D6] dark:bg-[#262522] text-[#191918] dark:text-[#ECEAE2] font-medium'
+              : 'text-[#4A4945] dark:text-[#B5B3AA] hover:bg-[#EAE7DD] dark:hover:bg-[#1F1E1C]'
+          }`}
+        >
+          <span className="flex items-center gap-2.5">
+            <FileText className="w-4 h-4 text-[#C96442]" />
+            <span>PDF &amp; Media Studio</span>
+          </span>
+          <span className="text-xs font-claude-mono text-[#6E6D68] dark:text-[#8E8C84]">
+            {pdfDocsCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSelectSection('fable')}
+          data-testid="nav-fable-free-apis"
+          className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            activeSection === 'fable'
+              ? 'bg-[#E5E1D6] dark:bg-[#262522] text-[#191918] dark:text-[#ECEAE2] font-medium'
+              : 'text-[#4A4945] dark:text-[#B5B3AA] hover:bg-[#EAE7DD] dark:hover:bg-[#1F1E1C]'
+          }`}
+        >
+          <span className="flex items-center gap-2.5">
+            <BookOpen className="w-4 h-4 text-[#C96442]" />
+            <span>Fable &amp; Free APIs</span>
+          </span>
+          <span className="text-[10px] font-claude-mono px-1.5 py-0.5 rounded bg-[#C96442]/15 text-[#C96442] font-semibold">
+            FREE
+          </span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => onSelectSection('projects')}
           className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-sm transition-colors ${
             activeSection === 'projects'
@@ -226,6 +335,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </span>
           <span className="text-xs font-claude-mono text-[#6E6D68] dark:text-[#8E8C84]">
             {totalArtifactsCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSelectSection('maps')}
+          className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            activeSection === 'maps'
+              ? 'bg-[#E5E1D6] dark:bg-[#262522] text-[#191918] dark:text-[#ECEAE2] font-medium'
+              : 'text-[#4A4945] dark:text-[#B5B3AA] hover:bg-[#EAE7DD] dark:hover:bg-[#1F1E1C]'
+          }`}
+        >
+          <span className="flex items-center gap-2.5">
+            <Compass className="w-4 h-4 text-[#6E6D68] dark:text-[#9A9890]" />
+            <span>Maps Explorer</span>
+          </span>
+          <span className="text-[11px] font-claude-mono text-[#6E6D68] dark:text-[#8E8C84]">
+            GMP
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSelectSection('spatial3d')}
+          data-testid="nav-3d-spatial"
+          className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            activeSection === 'spatial3d'
+              ? 'bg-[#E5E1D6] dark:bg-[#262522] text-[#191918] dark:text-[#ECEAE2] font-medium'
+              : 'text-[#4A4945] dark:text-[#B5B3AA] hover:bg-[#EAE7DD] dark:hover:bg-[#1F1E1C]'
+          }`}
+        >
+          <span className="flex items-center gap-2.5">
+            <Box className="w-4 h-4 text-[#C96442]" />
+            <span>3D Video &amp; Spatial</span>
+          </span>
+          <span className="text-[11px] font-claude-mono text-[#6E6D68] dark:text-[#8E8C84]">
+            3D
           </span>
         </button>
       </nav>
@@ -344,44 +490,68 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Bottom Profile & Theme Switcher */}
-      <div className="p-3 border-t border-[#E5E2D9] dark:border-[#2C2B28] flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-7 h-7 rounded-full bg-[#C96442]/15 text-[#C96442] flex items-center justify-center font-semibold text-xs shrink-0">
-            FA
+      {/* Bottom Profile, Cloud SQL Sync & Theme Switcher */}
+      <div className="p-3 border-t border-[#E5E2D9] dark:border-[#2C2B28] space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-full bg-[#C96442]/15 text-[#C96442] flex items-center justify-center font-semibold text-xs shrink-0">
+              {userDisplayName ? userDisplayName.slice(0, 2).toUpperCase() : 'FA'}
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-[#191918] dark:text-[#ECEAE2] truncate">
+                {userDisplayName || userEmail || 'Professional Plan'}
+              </div>
+              <div className="text-[11px] text-[#6E6D68] dark:text-[#8E8C84] truncate">
+                {userEmail ? 'Cloud SQL Synced' : '200K Context · Artifacts'}
+              </div>
+            </div>
           </div>
-          <div className="min-w-0">
-            <div className="text-xs font-medium text-[#191918] dark:text-[#ECEAE2] truncate">
-              Professional Plan
-            </div>
-            <div className="text-[11px] text-[#6E6D68] dark:text-[#8E8C84] truncate">
-              200K Context · Artifacts
-            </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            {userEmail ? (
+              <button
+                type="button"
+                onClick={onSignOut}
+                aria-label="Sign out"
+                title="Sign out"
+                className="p-1.5 rounded-lg text-[#6E6D68] hover:bg-[#E7E4DA] dark:hover:bg-[#232220]"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              onSignIn && (
+                <button
+                  type="button"
+                  onClick={onSignIn}
+                  aria-label="Sign in with Google"
+                  title="Sign in with Google to sync with Cloud SQL"
+                  className="px-2 py-1 rounded-lg text-[11px] font-medium bg-[#EAE7DD] dark:bg-[#262522] text-[#191918] dark:text-[#ECEAE2] hover:bg-[#DFDBD0] flex items-center gap-1"
+                >
+                  <LogIn className="w-3 h-3 text-[#C96442]" />
+                  <span>Sync</span>
+                </button>
+              )
+            )}
+
+            <button
+              type="button"
+              onClick={onToggleDarkMode}
+              aria-label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+              className="px-2 py-1 rounded-lg text-xs font-medium text-[#4A4945] dark:text-[#B5B3AA] hover:bg-[#E7E4DA] dark:hover:bg-[#232220] flex items-center gap-1 transition-colors shrink-0"
+            >
+              {darkMode ? (
+                <Sun className="w-3.5 h-3.5 text-[#D97757]" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 text-[#5A5955]" />
+              )}
+            </button>
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={onToggleDarkMode}
-          aria-label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}
-          className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#4A4945] dark:text-[#B5B3AA] hover:bg-[#E7E4DA] dark:hover:bg-[#232220] flex items-center gap-1.5 transition-colors shrink-0"
-        >
-          {darkMode ? (
-            <>
-              <Sun className="w-3.5 h-3.5 text-[#D97757]" />
-              <span>Light</span>
-            </>
-          ) : (
-            <>
-              <Moon className="w-3.5 h-3.5 text-[#5A5955]" />
-              <span>Dark</span>
-            </>
-          )}
-        </button>
       </div>
     </aside>
   );
 };
+
 
 interface ThreadRowProps {
   thread: ChatThread;

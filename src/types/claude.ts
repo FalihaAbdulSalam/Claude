@@ -1,5 +1,20 @@
 export type ClaudeModelId = 'claude-3-7-sonnet' | 'claude-3-5-sonnet' | 'claude-3-5-haiku' | 'claude-3-opus';
 
+export type GeminiModelAlias =
+  | 'gemini-4-argon'
+  | 'gemini-4-carbon'
+  | 'gemini-3.8-flash'
+  | 'gemini-3.1-flash-lite';
+
+export type WorkspaceSection =
+  | 'chat'
+  | 'projects'
+  | 'artifacts'
+  | 'studio'
+  | 'fable'
+  | 'maps'
+  | 'spatial3d';
+
 export type WritingStyleId = 'normal' | 'concise' | 'explanatory' | 'formal';
 
 export type ArtifactType = 'html' | 'svg' | 'code' | 'markdown';
@@ -21,8 +36,16 @@ export interface AttachmentItem {
   name: string;
   mimeType: string;
   sizeBytes: number;
-  content: string; // text content or base64 data URL
+  content: string; // text content or base64 data URL (including application/pdf)
   isImage: boolean;
+  isPdf?: boolean;
+  pageCount?: number;
+}
+
+export interface GroundingCitation {
+  title: string;
+  uri: string;
+  sourceType: 'web' | 'maps';
 }
 
 export interface MessageItem {
@@ -35,6 +58,7 @@ export interface MessageItem {
   modelId?: ClaudeModelId;
   attachments?: AttachmentItem[];
   artifacts?: ArtifactItem[];
+  citations?: GroundingCitation[];
   feedback?: 'up' | 'down' | null;
 }
 
@@ -68,3 +92,56 @@ export interface ChatThread {
   updatedAt: string;
   messages: MessageItem[];
 }
+
+export interface AnalyzedPdfDocument {
+  id: string;
+  filename: string;
+  mimeType: string;
+  pageCount: number;
+  summary: string;
+  keyFindings: string[];
+  extractedText: string;
+  createdAt: string;
+}
+
+export type FreeApiId =
+  | 'anthropic_org_keys'
+  | 'openlibrary'
+  | 'gutendex'
+  | 'wikipedia'
+  | 'arxiv'
+  | 'openmeteo'
+  | 'hackernews'
+  | 'dictionary'
+  | 'restcountries';
+
+export interface FreeApiItem {
+  title: string;
+  subtitle: string;
+  summary: string;
+  url?: string;
+  badge?: string;
+}
+
+export interface StoryPromptItem {
+  id: string;
+  title: string;
+  genre: string;
+  logline: string;
+  protagonistAndConflict: string;
+  fullStoryPrompt: string;
+  threeDVideoPrompt: string;
+}
+
+export interface FableChapter {
+  id: string;
+  title: string;
+  narrative: string;
+  moralOrInsight: string;
+  voiceStyle: 'Fable (Warm British Storyteller)' | 'Zephyr (Clear Editorial)' | 'Fenrir (Deep Resonance)';
+  choices: string[];
+  illustrationSvg: string;
+}
+
+
+

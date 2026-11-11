@@ -1,14 +1,22 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { auth, googleAuthProvider } from './lib/firebase';
 import {
+  AnalyzedPdfDocument,
   ArtifactItem,
   AttachmentItem,
   ChatThread,
   ClaudeModelId,
   MessageItem,
   ProjectItem,
+  WorkspaceSection,
   WritingStyleId,
 } from './types/claude';
-import { INITIAL_PROJECTS, INITIAL_THREADS } from './data/seedData';
+import {
+  INITIAL_PDF_DOCUMENTS,
+  INITIAL_PROJECTS,
+  INITIAL_THREADS,
+} from './data/seedData';
 import {
   buildClaudeSystemInstruction,
   deriveThreadTitle,
@@ -20,20 +28,44 @@ import { ChatView } from './components/ChatView';
 import { ArtifactDrawer } from './components/ArtifactDrawer';
 import { ProjectsView } from './components/ProjectsView';
 import { ArtifactsLibraryView } from './components/ArtifactsLibraryView';
+import { MediaStudioView } from './components/MediaStudioView';
+import { MapsExplorerView } from './components/MapsExplorerView';
+import { ThreeSpatialGameView } from './components/ThreeSpatialGameView';
+import { FableAndFreeApisView } from './components/FableAndFreeApisView';
 
 const STORAGE_KEYS = {
-  THREADS: 'claude_workspace_threads_v1',
-  PROJECTS: 'claude_workspace_projects_v1',
+  THREADS: 'claude_workspace_threads_v2',
+  PROJECTS: 'claude_workspace_projects_v2',
+  PDF_DOCS: 'claude_workspace_pdfs_v2',
   THEME: 'claude_workspace_dark_v1',
 };
 
 export default function App() {
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
+
+  useEffect(() => {
+    // Purge legacy static v1 keys so no static demo data remains
+    try {
+      localStorage.removeItem('claude_workspace_threads_v1');
+      localStorage.removeItem('claude_workspace_projects_v1');
+      localStorage.removeItem('claude_workspace_pdfs_v1');
+    } catch {
+      // ignore
+    }
+    const handler = () => setQuotaExceeded(true);
+    window.addEventListener('gmp-quota-exceeded', handler);
+    return () => window.removeEventListener('gmp-quota-exceeded', handler);
+  }, []);
+
+  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const isAutoStart3D = urlParams.get('autostart') === '1';
+
   const [threads, setThreads] = useState<ChatThread[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.THREADS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {
       // ignore storage errors
@@ -46,12 +78,25 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEYS.PROJECTS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {
       // ignore storage errors
     }
     return INITIAL_PROJECTS;
+  });
+
+  const [pdfDocuments, setPdfDocuments] = useState<AnalyzedPdfDocument[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.PDF_DOCS);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_PDF_DOCUMENTS;
   });
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -62,8 +107,11 @@ export default function App() {
     }
   });
 
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeSection, setActiveSection] = useState<'chat' | 'projects' | 'artifacts'>('chat');
+  const [activeSection, setActiveSection] = useState<WorkspaceSection>(() =>
+    isAutoStart3D ? 'spatial3d' : 'chat'
+  );
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
@@ -71,12 +119,99 @@ export default function App() {
   const [selectedModelId, setSelectedModelId] = useState<ClaudeModelId>('claude-3-7-sonnet');
   const [selectedStyleId, setSelectedStyleId] = useState<WritingStyleId>('normal');
   const [extendedThinking, setExtendedThinking] = useState<boolean>(true);
+  const [useGoogleSearch, setUseGoogleSearch] = useState<boolean>(false);
+  const [useGoogleMaps, setUseGoogleMaps] = useState<boolean>(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   // Split-screen Artifact drawer state
   const [activeArtifact, setActiveArtifact] = useState<ArtifactItem | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Firebase Auth & Cloud SQL Workspace Hydration
+  useEffect(() => {
+    if (!auth) return;
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          const res = await fetch('/api/workspace', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.threads) && data.threads.length > 0) {
+              const loadedThreads: ChatThread[] = data.threads.map(
+                (row: {
+                  id: string;
+                  title: string;
+                  projectId: string | null;
+                  modelId: ClaudeModelId;
+                  styleId: WritingStyleId;
+                  extendedThinking: boolean;
+                  starred: boolean;
+                  createdAt: string;
+                  updatedAt: string;
+                  messagesJson: string;
+                }) => ({
+                  id: row.id,
+                  title: row.title,
+                  projectId: row.projectId,
+                  modelId: row.modelId || 'claude-3-7-sonnet',
+                  styleId: row.styleId || 'normal',
+                  extendedThinking: Boolean(row.extendedThinking),
+                  starred: Boolean(row.starred),
+                  createdAt: row.createdAt,
+                  updatedAt: row.updatedAt,
+                  messages: JSON.parse(row.messagesJson || '[]'),
+                })
+              );
+              setThreads(loadedThreads);
+            }
+          }
+        } catch {
+          // Keep local workspace state if offline
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const syncThreadToCloudSql = async (thread: ChatThread) => {
+    if (!currentUser) return;
+    try {
+      const token = await currentUser.getIdToken();
+      await fetch('/api/threads', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(thread),
+      });
+    } catch {
+      // ignore background sync error
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    if (!auth) return;
+    try {
+      await signInWithPopup(auth, googleAuthProvider);
+    } catch {
+      // popup closed by user
+    }
+  };
+
+  const handleGoogleSignOut = async () => {
+    if (!auth) return;
+    try {
+      await signOut(auth);
+    } catch {
+      // ignore
+    }
+  };
 
   // Sync dark mode class on <html>
   useEffect(() => {
@@ -93,7 +228,7 @@ export default function App() {
     }
   }, [darkMode]);
 
-  // Persist threads
+  // Persist threads locally
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.THREADS, JSON.stringify(threads));
@@ -102,7 +237,7 @@ export default function App() {
     }
   }, [threads]);
 
-  // Persist projects
+  // Persist projects locally
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects));
@@ -110,6 +245,15 @@ export default function App() {
       // ignore
     }
   }, [projects]);
+
+  // Persist PDF documents locally
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.PDF_DOCS, JSON.stringify(pdfDocuments));
+    } catch {
+      // ignore
+    }
+  }, [pdfDocuments]);
 
   const activeThread = useMemo(
     () => threads.find((t) => t.id === activeThreadId) || null,
@@ -150,7 +294,6 @@ export default function App() {
     setActiveThreadId(threadId);
     const found = threads.find((t) => t.id === threadId);
     if (found) {
-      // Automatically open the latest artifact in this thread if one exists
       const threadArts: ArtifactItem[] = [];
       found.messages.forEach((m) => {
         if (m.artifacts) threadArts.push(...m.artifacts);
@@ -165,11 +308,22 @@ export default function App() {
     );
   };
 
-  const handleDeleteThread = (threadId: string) => {
+  const handleDeleteThread = async (threadId: string) => {
     setThreads((prev) => prev.filter((t) => t.id !== threadId));
     if (activeThreadId === threadId) {
       setActiveThreadId(null);
       setActiveArtifact(null);
+    }
+    if (currentUser) {
+      try {
+        const token = await currentUser.getIdToken();
+        await fetch(`/api/threads/${threadId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {
+        // ignore
+      }
     }
   };
 
@@ -182,7 +336,8 @@ export default function App() {
   const handleSendMessage = async (
     content: string,
     attachments: AttachmentItem[],
-    overrideThinking?: boolean
+    overrideThinking?: boolean,
+    overrideUseMaps?: boolean
   ) => {
     const now = new Date().toISOString();
     const useThinking =
@@ -216,6 +371,7 @@ export default function App() {
 
     let targetThreadId = activeThreadId;
     let historyMessages: MessageItem[] = [];
+    let updatedThreadSnapshot: ChatThread | null = null;
 
     if (!targetThreadId) {
       targetThreadId = `thread-${Date.now()}`;
@@ -231,6 +387,7 @@ export default function App() {
         updatedAt: now,
         messages: [userMsg, placeholderAssistantMsg],
       };
+      updatedThreadSnapshot = newThread;
       historyMessages = [userMsg];
       setThreads((prev) => [newThread, ...prev]);
       setActiveThreadId(targetThreadId);
@@ -238,15 +395,18 @@ export default function App() {
       const existing = threads.find((t) => t.id === targetThreadId);
       historyMessages = existing ? [...existing.messages, userMsg] : [userMsg];
       setThreads((prev) =>
-        prev.map((t) =>
-          t.id === targetThreadId
-            ? {
-                ...t,
-                updatedAt: now,
-                messages: [...t.messages, userMsg, placeholderAssistantMsg],
-              }
-            : t
-        )
+        prev.map((t) => {
+          if (t.id === targetThreadId) {
+            const next = {
+              ...t,
+              updatedAt: now,
+              messages: [...t.messages, userMsg, placeholderAssistantMsg],
+            };
+            updatedThreadSnapshot = next;
+            return next;
+          }
+          return t;
+        })
       );
     }
 
@@ -272,6 +432,8 @@ export default function App() {
           systemInstruction,
           modelId: targetModelId,
           extendedThinking: useThinking,
+          useGoogleSearch,
+          useGoogleMaps: overrideUseMaps ?? useGoogleMaps,
         }),
         signal: controller.signal,
       });
@@ -318,30 +480,39 @@ export default function App() {
               }
 
               setThreads((prev) =>
-                prev.map((t) =>
-                  t.id === targetThreadId
-                    ? {
-                        ...t,
-                        messages: t.messages.map((m) =>
-                          m.id === assistantMsgId
-                            ? {
-                                ...m,
-                                content: cleanContent || '...',
-                                thinking: thinking || m.thinking,
-                                thinkingDurationSec: useThinking ? durationSec : undefined,
-                                artifacts: builtArtifacts.length > 0 ? builtArtifacts : m.artifacts,
-                              }
-                            : m
-                        ),
-                      }
-                    : t
-                )
+                prev.map((t) => {
+                  if (t.id === targetThreadId) {
+                    const nextThread = {
+                      ...t,
+                      messages: t.messages.map((m) =>
+                        m.id === assistantMsgId
+                          ? {
+                              ...m,
+                              content: cleanContent || '...',
+                              thinking: thinking || m.thinking,
+                              thinkingDurationSec: useThinking ? durationSec : undefined,
+                              artifacts:
+                                builtArtifacts.length > 0 ? builtArtifacts : m.artifacts,
+                              citations: parsed.citations || m.citations,
+                            }
+                          : m
+                      ),
+                    };
+                    updatedThreadSnapshot = nextThread;
+                    return nextThread;
+                  }
+                  return t;
+                })
               );
             }
           } catch {
             // ignore partial SSE JSON
           }
         }
+      }
+
+      if (updatedThreadSnapshot) {
+        syncThreadToCloudSql(updatedThreadSnapshot);
       }
     } catch {
       // If aborted by user, keep partial content
@@ -464,124 +635,262 @@ export default function App() {
     setActiveSection('chat');
   };
 
-  return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#FAF9F5] dark:bg-[#191918] text-[#191918] dark:text-[#ECEAE2]">
-      <Sidebar
-        isOpen={sidebarOpen}
-        onToggleOpen={() => setSidebarOpen((v) => !v)}
-        activeSection={activeSection}
-        onSelectSection={(sec) => {
-          setActiveSection(sec);
-          if (sec === 'projects' && !activeProjectId) {
-            setActiveProjectId(null);
-          }
-        }}
-        threads={threads}
-        activeThreadId={activeThreadId}
-        onSelectThread={handleSelectThread}
-        onNewChat={handleNewChat}
-        onToggleStarThread={handleToggleStarThread}
-        onDeleteThread={handleDeleteThread}
-        onRenameThread={handleRenameThread}
-        projects={projects}
-        activeProjectId={activeProjectId}
-        onSelectProject={(pid) => setActiveProjectId(pid)}
-        darkMode={darkMode}
-        onToggleDarkMode={() => setDarkMode((d) => !d)}
-        totalArtifactsCount={allArtifacts.length}
-      />
+  // PDF Studio Handlers
+  const handleAddOrUpdatePdfDocument = async (doc: AnalyzedPdfDocument) => {
+    setPdfDocuments((prev) => {
+      const exists = prev.some((d) => d.id === doc.id);
+      if (exists) {
+        return prev.map((d) => (d.id === doc.id ? doc : d));
+      }
+      return [doc, ...prev];
+    });
 
-      {activeSection === 'chat' && (
-        <ChatView
-          thread={activeThread}
-          projects={projects}
-          selectedModelId={selectedModelId}
-          onChangeModelId={(m) => {
-            setSelectedModelId(m);
-            if (activeThreadId) {
-              setThreads((prev) =>
-                prev.map((t) => (t.id === activeThreadId ? { ...t, modelId: m } : t))
-              );
-            }
+    if (currentUser) {
+      try {
+        const token = await currentUser.getIdToken();
+        await fetch('/api/documents', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(doc),
+        });
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const handleAskClaudeWithPdf = (doc: AnalyzedPdfDocument, customPrompt?: string) => {
+    setActiveSection('chat');
+    setActiveThreadId(null);
+    setActiveArtifact(null);
+    const pdfAtt: AttachmentItem = {
+      id: `att-${doc.id}`,
+      name: doc.filename,
+      mimeType: 'application/pdf',
+      sizeBytes: doc.extractedText.length * 12,
+      content: `${doc.summary}\n\n${doc.extractedText}`,
+      isImage: false,
+      isPdf: true,
+      pageCount: doc.pageCount,
+    };
+    const promptToUse =
+      customPrompt ||
+      `Analyze the attached PDF "${doc.filename}" (${doc.pageCount} pages) and build an interactive HTML summary & parameter explorer Artifact.`;
+    setTimeout(() => {
+      handleSendMessage(promptToUse, [pdfAtt], true);
+    }, 30);
+  };
+
+  return (
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#FAF9F5] dark:bg-[#191918] text-[#191918] dark:text-[#ECEAE2]">
+      {/* Mandatory Tier 2 Google Maps Demo Key Quota Defense Banner */}
+      {quotaExceeded && (
+        <div
+          role="alert"
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 9999,
+            background: '#fffbeb',
+            borderBottom: '1px solid #f59e0b',
+            padding: '10px 16px',
+            fontSize: '14px',
+            color: '#92400e',
           }}
-          selectedStyleId={selectedStyleId}
-          onChangeStyleId={(s) => {
-            setSelectedStyleId(s);
-            if (activeThreadId) {
-              setThreads((prev) =>
-                prev.map((t) => (t.id === activeThreadId ? { ...t, styleId: s } : t))
-              );
-            }
-          }}
-          extendedThinking={extendedThinking}
-          onToggleExtendedThinking={() => {
-            const next = !(activeThread ? activeThread.extendedThinking : extendedThinking);
-            setExtendedThinking(next);
-            if (activeThreadId) {
-              setThreads((prev) =>
-                prev.map((t) =>
-                  t.id === activeThreadId ? { ...t, extendedThinking: next } : t
-                )
-              );
-            }
-          }}
-          selectedProjectId={selectedProjectId}
-          onChangeProjectId={(pid) => {
-            setSelectedProjectId(pid);
-            if (activeThreadId) {
-              setThreads((prev) =>
-                prev.map((t) => (t.id === activeThreadId ? { ...t, projectId: pid } : t))
-              );
-            }
-          }}
-          isStreaming={isStreaming}
-          onStopStreaming={handleStopStreaming}
-          onSendMessage={handleSendMessage}
-          onRegenerateLast={handleRegenerateLast}
-          onFeedbackMessage={handleFeedbackMessage}
-          activeArtifact={activeArtifact}
-          onOpenArtifact={(art) => setActiveArtifact(art)}
-          allThreadArtifacts={activeThreadArtifacts}
-        />
+        >
+          Google Maps API key reached its quota limit. Visit{' '}
+          <a
+            href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontWeight: 600, textDecoration: 'underline' }}
+          >
+            Google Maps Platform templates on AI Studio
+          </a>{' '}
+          to resolve this issue.
+        </div>
       )}
 
-      {activeSection === 'projects' && (
-        <ProjectsView
+      <div className="flex flex-1 min-h-0 w-full overflow-hidden">
+        <Sidebar
+          isOpen={sidebarOpen}
+          onToggleOpen={() => setSidebarOpen((v) => !v)}
+          activeSection={activeSection}
+          onSelectSection={(sec) => {
+            setActiveSection(sec);
+            if (sec === 'projects' && !activeProjectId) {
+              setActiveProjectId(null);
+            }
+          }}
+          threads={threads}
+          activeThreadId={activeThreadId}
+          onSelectThread={handleSelectThread}
+          onNewChat={handleNewChat}
+          onToggleStarThread={handleToggleStarThread}
+          onDeleteThread={handleDeleteThread}
+          onRenameThread={handleRenameThread}
           projects={projects}
           activeProjectId={activeProjectId}
-          onSelectProject={setActiveProjectId}
-          onCreateProject={handleCreateProject}
-          onUpdateProjectInstructions={handleUpdateProjectInstructions}
-          onAddKnowledgeDoc={handleAddKnowledgeDoc}
-          onRemoveKnowledgeDoc={handleRemoveKnowledgeDoc}
-          threads={threads}
-          onStartProjectChat={handleStartProjectChat}
-          onOpenThread={handleSelectThread}
+          onSelectProject={(pid) => setActiveProjectId(pid)}
+          darkMode={darkMode}
+          onToggleDarkMode={() => setDarkMode((d) => !d)}
+          totalArtifactsCount={allArtifacts.length}
+          pdfDocsCount={pdfDocuments.length}
+          userEmail={currentUser?.email}
+          userDisplayName={currentUser?.displayName}
+          onSignIn={handleGoogleSignIn}
+          onSignOut={handleGoogleSignOut}
         />
-      )}
 
-      {activeSection === 'artifacts' && (
-        <ArtifactsLibraryView
-          artifacts={allArtifacts}
-          onInspectArtifact={(art) => {
-            setActiveThreadId(art.threadId);
-            setActiveSection('chat');
-            setActiveArtifact(art);
-          }}
-        />
-      )}
+        {activeSection === 'chat' && (
+          <ChatView
+            thread={activeThread}
+            projects={projects}
+            selectedModelId={selectedModelId}
+            onChangeModelId={(m) => {
+              setSelectedModelId(m);
+              if (activeThreadId) {
+                setThreads((prev) =>
+                  prev.map((t) => (t.id === activeThreadId ? { ...t, modelId: m } : t))
+                );
+              }
+            }}
+            selectedStyleId={selectedStyleId}
+            onChangeStyleId={(s) => {
+              setSelectedStyleId(s);
+              if (activeThreadId) {
+                setThreads((prev) =>
+                  prev.map((t) => (t.id === activeThreadId ? { ...t, styleId: s } : t))
+                );
+              }
+            }}
+            extendedThinking={extendedThinking}
+            onToggleExtendedThinking={() => {
+              const next = !(activeThread ? activeThread.extendedThinking : extendedThinking);
+              setExtendedThinking(next);
+              if (activeThreadId) {
+                setThreads((prev) =>
+                  prev.map((t) =>
+                    t.id === activeThreadId ? { ...t, extendedThinking: next } : t
+                  )
+                );
+              }
+            }}
+            useGoogleSearch={useGoogleSearch}
+            onToggleGoogleSearch={() => setUseGoogleSearch((v) => !v)}
+            useGoogleMaps={useGoogleMaps}
+            onToggleGoogleMaps={() => setUseGoogleMaps((v) => !v)}
+            selectedProjectId={selectedProjectId}
+            onChangeProjectId={(pid) => {
+              setSelectedProjectId(pid);
+              if (activeThreadId) {
+                setThreads((prev) =>
+                  prev.map((t) => (t.id === activeThreadId ? { ...t, projectId: pid } : t))
+                );
+              }
+            }}
+            isStreaming={isStreaming}
+            onStopStreaming={handleStopStreaming}
+            onSendMessage={handleSendMessage}
+            onRegenerateLast={handleRegenerateLast}
+            onFeedbackMessage={handleFeedbackMessage}
+            activeArtifact={activeArtifact}
+            onOpenArtifact={(art) => setActiveArtifact(art)}
+            allThreadArtifacts={activeThreadArtifacts}
+          />
+        )}
 
-      {/* Split-Screen Artifacts Drawer */}
-      {activeSection === 'chat' && activeArtifact && (
-        <ArtifactDrawer
-          artifact={activeArtifact}
-          allThreadArtifacts={
-            activeThreadArtifacts.length > 0 ? activeThreadArtifacts : [activeArtifact]
-          }
-          onSelectArtifact={(art) => setActiveArtifact(art)}
-          onClose={() => setActiveArtifact(null)}
-        />
-      )}
+        {activeSection === 'studio' && (
+          <MediaStudioView
+            pdfDocuments={pdfDocuments}
+            onAddPdfDocument={handleAddOrUpdatePdfDocument}
+            onAskClaudeWithPdf={handleAskClaudeWithPdf}
+            projects={projects}
+            onAddPdfToProject={(projectId, doc) => {
+              handleAddKnowledgeDoc(projectId, {
+                title: doc.filename,
+                content: `${doc.summary}\n\n${doc.extractedText}`,
+              });
+            }}
+          />
+        )}
+
+        {activeSection === 'projects' && (
+          <ProjectsView
+            projects={projects}
+            activeProjectId={activeProjectId}
+            onSelectProject={setActiveProjectId}
+            onCreateProject={handleCreateProject}
+            onUpdateProjectInstructions={handleUpdateProjectInstructions}
+            onAddKnowledgeDoc={handleAddKnowledgeDoc}
+            onRemoveKnowledgeDoc={handleRemoveKnowledgeDoc}
+            threads={threads}
+            onStartProjectChat={handleStartProjectChat}
+            onOpenThread={handleSelectThread}
+          />
+        )}
+
+        {activeSection === 'artifacts' && (
+          <ArtifactsLibraryView
+            artifacts={allArtifacts}
+            onInspectArtifact={(art) => {
+              setActiveThreadId(art.threadId);
+              setActiveSection('chat');
+              setActiveArtifact(art);
+            }}
+          />
+        )}
+
+        {activeSection === 'maps' && (
+          <MapsExplorerView
+            onAskMapsGroundedChat={(prompt) => {
+              setUseGoogleMaps(true);
+              setActiveSection('chat');
+              setActiveThreadId(null);
+              setActiveArtifact(null);
+              setTimeout(() => {
+                handleSendMessage(prompt, [], true, true);
+              }, 30);
+            }}
+          />
+        )}
+
+        {activeSection === 'fable' && (
+          <FableAndFreeApisView
+            projects={projects}
+            activeProjectId={activeProjectId}
+            onSendToChat={(promptText) => {
+              setActiveSection('chat');
+              setActiveThreadId(null);
+              setActiveArtifact(null);
+              setTimeout(() => {
+                handleSendMessage(promptText, [], true);
+              }, 30);
+            }}
+            onAddKnowledgeDoc={handleAddKnowledgeDoc}
+          />
+        )}
+
+        {activeSection === 'spatial3d' && (
+          <ThreeSpatialGameView autoStart={isAutoStart3D} />
+        )}
+
+        {/* Split-Screen Artifacts Drawer */}
+        {activeSection === 'chat' && activeArtifact && (
+          <ArtifactDrawer
+            artifact={activeArtifact}
+            allThreadArtifacts={
+              activeThreadArtifacts.length > 0 ? activeThreadArtifacts : [activeArtifact]
+            }
+            onSelectArtifact={(art) => setActiveArtifact(art)}
+            onClose={() => setActiveArtifact(null)}
+          />
+        )}
+      </div>
     </div>
   );
 }
+

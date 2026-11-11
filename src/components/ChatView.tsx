@@ -15,7 +15,14 @@ import {
   Feather,
   X,
   FileCode,
+  FileText,
   Square,
+  Globe,
+  MapPin,
+  Mic,
+  ExternalLink,
+  Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 import {
   ArtifactItem,
@@ -24,9 +31,10 @@ import {
   ClaudeModelId,
   MessageItem,
   ProjectItem,
+  StoryPromptItem,
   WritingStyleId,
 } from '../types/claude';
-import { CLAUDE_MODELS, STARTER_PROMPTS, WRITING_STYLES } from '../data/seedData';
+import { CLAUDE_MODELS, WRITING_STYLES } from '../data/seedData';
 import { ClaudeSunburstIcon } from './ClaudeIcon';
 
 interface ChatViewProps {
@@ -38,11 +46,19 @@ interface ChatViewProps {
   onChangeStyleId: (s: WritingStyleId) => void;
   extendedThinking: boolean;
   onToggleExtendedThinking: () => void;
+  useGoogleSearch: boolean;
+  onToggleGoogleSearch: () => void;
+  useGoogleMaps: boolean;
+  onToggleGoogleMaps: () => void;
   selectedProjectId: string | null;
   onChangeProjectId: (p: string | null) => void;
   isStreaming: boolean;
   onStopStreaming: () => void;
-  onSendMessage: (content: string, attachments: AttachmentItem[], overrideThinking?: boolean) => void;
+  onSendMessage: (
+    content: string,
+    attachments: AttachmentItem[],
+    overrideThinking?: boolean
+  ) => void;
   onRegenerateLast: () => void;
   onFeedbackMessage: (messageId: string, feedback: 'up' | 'down') => void;
   activeArtifact: ArtifactItem | null;
@@ -59,6 +75,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onChangeStyleId,
   extendedThinking,
   onToggleExtendedThinking,
+  useGoogleSearch,
+  onToggleGoogleSearch,
+  useGoogleMaps,
+  onToggleGoogleMaps,
   selectedProjectId,
   onChangeProjectId,
   isStreaming,
@@ -77,6 +97,35 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [snippetBody, setSnippetBody] = useState('');
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
   const [expandedThinkingIds, setExpandedThinkingIds] = useState<Record<string, boolean>>({});
+  const [isDictating, setIsDictating] = useState(false);
+  const [storyGenre, setStoryGenre] = useState<string>('Mythic Fable');
+  const [storyTheme, setStoryTheme] = useState<string>('');
+  const [generatedStoryPrompts, setGeneratedStoryPrompts] = useState<StoryPromptItem[]>([]);
+  const [isGeneratingStoryPrompts, setIsGeneratingStoryPrompts] = useState(false);
+
+  const handleGenerateStoryPrompts = async () => {
+    setIsGeneratingStoryPrompts(true);
+    try {
+      const res = await fetch('/api/fable/story-prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          genre: storyGenre,
+          theme: storyTheme.trim() || 'unwritten futures, discovery, and courage',
+          tone: 'Lyrical & Atmospheric',
+          count: 4,
+        }),
+      });
+      const data = await res.json();
+      if (Array.isArray(data.prompts)) {
+        setGeneratedStoryPrompts(data.prompts);
+      }
+    } catch {
+      // ignore network error
+    } finally {
+      setIsGeneratingStoryPrompts(false);
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -120,6 +169,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
     if (!files || files.length === 0) return;
     Array.from(files).forEach((file) => {
       const isImage = file.type.startsWith('image/');
+      const isPdf =
+        file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
       const reader = new FileReader();
       reader.onload = () => {
         const result = typeof reader.result === 'string' ? reader.result : '';
@@ -128,20 +179,43 @@ export const ChatView: React.FC<ChatViewProps> = ({
           {
             id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             name: file.name,
-            mimeType: file.type || 'text/plain',
+            mimeType: isPdf ? 'application/pdf' : file.type || 'text/plain',
             sizeBytes: file.size,
             content: result,
             isImage,
+            isPdf,
           },
         ]);
       };
-      if (isImage) {
+      if (isImage || isPdf) {
         reader.readAsDataURL(file);
       } else {
         reader.readAsText(file);
       }
     });
     e.target.value = '';
+  };
+
+  const handleVoiceDictate = async () => {
+    if (isDictating) return;
+    setIsDictating(true);
+    try {
+      const res = await fetch('/api/audio/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          base64Audio: '',
+          filename: 'voice-dictation.webm',
+        }),
+      });
+      const data = await res.json();
+      if (data.transcript) {
+        const cleaned = data.transcript.replace(/^Transcribed voice note \([^)]+\):\s*"|"$/g, '');
+        setInput((prev) => (prev ? `${prev} ${cleaned}` : cleaned));
+      }
+    } finally {
+      setIsDictating(false);
+    }
   };
 
   const handleAddSnippet = (e: React.FormEvent) => {
@@ -207,7 +281,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           )}
         </div>
 
-        {/* Zone 2: Quiet metadata (hidden when split-screen Artifact drawer is open on smaller widths) */}
+        {/* Zone 2: Quiet metadata */}
         <div
           className={`${
             activeArtifact ? 'hidden 2xl:flex' : 'hidden lg:flex'
@@ -241,13 +315,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </button>
           ) : (
             <span className="text-xs font-claude-mono text-[#7A7872] whitespace-nowrap shrink-0">
-              200K Context
+              200K Context · PDF Ready
             </span>
           )}
         </div>
       </header>
 
-      {/* Main Content Area: Either Home Greeting + Central Composer OR Conversation Stream */}
+      {/* Main Content Area */}
       {isHomeEmpty ? (
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-10 flex flex-col items-center justify-center">
           <div className="w-full max-w-[740px] mx-auto">
@@ -278,47 +352,109 @@ export const ChatView: React.FC<ChatViewProps> = ({
               onRemoveAttachment={(id) => setAttachments((prev) => prev.filter((a) => a.id !== id))}
               onTriggerFileUpload={() => fileInputRef.current?.click()}
               onTriggerSnippetModal={() => setShowSnippetModal(true)}
+              onTriggerVoiceDictate={handleVoiceDictate}
+              isDictating={isDictating}
               selectedModelId={selectedModelId}
               onChangeModelId={onChangeModelId}
               selectedStyleId={selectedStyleId}
               onChangeStyleId={onChangeStyleId}
               extendedThinking={extendedThinking}
               onToggleExtendedThinking={onToggleExtendedThinking}
+              useGoogleSearch={useGoogleSearch}
+              onToggleGoogleSearch={onToggleGoogleSearch}
+              useGoogleMaps={useGoogleMaps}
+              onToggleGoogleMaps={onToggleGoogleMaps}
               projects={projects}
               selectedProjectId={selectedProjectId}
               onChangeProjectId={onChangeProjectId}
               isStreaming={isStreaming}
               onStopStreaming={onStopStreaming}
-              placeholder="How can Claude help you today? Ask for code, interactive HTML artifacts, SVG diagrams, or deep analysis..."
+              placeholder="Attach a PDF document, enable Web/Maps grounding, or ask Claude for interactive HTML & SVG Artifacts..."
             />
 
-            {/* Starter Prompts Grid */}
-            <div className="mt-7">
-              <div className="flex items-center justify-between mb-3 px-1">
-                <span className="text-xs font-medium text-[#6E6D68] dark:text-[#9A9890]">
-                  Explore capabilities &amp; interactive Artifacts
-                </span>
+            {/* On-Demand AI Story Prompt Generator (Zero Static Prompts) */}
+            <div
+              data-testid="chat-story-prompt-studio"
+              className="mt-6 rounded-2xl bg-[#F3F1EA] dark:bg-[#21201E] border border-[#E5E2D9] dark:border-[#2C2B28] p-4 space-y-3"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-[#191918] dark:text-[#ECEAE2]">
+                  <Sparkles className="w-3.5 h-3.5 text-[#C96442]" />
+                  <span>AI Story Prompt Studio — Create Custom Story Prompts On Demand</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(['Mythic Fable', 'Sci-Fi Odyssey', 'Gothic Mystery', '3D Animated Short'] as const).map(
+                    (g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setStoryGenre(g)}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                          storyGenre === g
+                            ? 'bg-[#C96442] text-white'
+                            : 'bg-[#EAE7DD] dark:bg-[#2A2926] text-[#5A5955] dark:text-[#A3A19A]'
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    )
+                  )}
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {STARTER_PROMPTS.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => onSendMessage(item.prompt, [], item.extendedThinking)}
-                    className="p-3.5 rounded-xl bg-[#F3F1EA] dark:bg-[#21201E] border border-[#E5E2D9] dark:border-[#2C2B28] hover:border-[#C96442] dark:hover:border-[#C96442] text-left transition-colors group"
-                  >
-                    <div className="flex items-center justify-between text-[11px] text-[#6E6D68] dark:text-[#9A9890] mb-1">
-                      <span>{item.category}</span>
-                      {item.extendedThinking && (
-                        <span className="text-[#C96442] font-medium">Extended Thinking</span>
-                      )}
-                    </div>
-                    <div className="text-xs font-medium text-[#191918] dark:text-[#ECEAE2] group-hover:text-[#C96442] transition-colors">
-                      {item.title}
-                    </div>
-                  </button>
-                ))}
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={storyTheme}
+                  onChange={(e) => setStoryTheme(e.target.value)}
+                  placeholder="Optional story theme (e.g. clockwork observatory, deep sea archive, quantum loom)..."
+                  className="flex-1 px-3 py-2 rounded-xl bg-[#FAF9F5] dark:bg-[#191918] border border-[#DFDBD0] dark:border-[#33312D] text-xs text-[#191918] dark:text-[#ECEAE2] placeholder-[#7A7872] focus:outline-none focus:border-[#C96442]"
+                />
+                <button
+                  type="button"
+                  disabled={isGeneratingStoryPrompts}
+                  onClick={handleGenerateStoryPrompts}
+                  data-testid="chat-generate-story-prompts-btn"
+                  className="px-3.5 py-2 rounded-xl bg-[#191918] dark:bg-[#ECEAE2] text-white dark:text-[#191918] text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center justify-center gap-1.5 shrink-0"
+                >
+                  {isGeneratingStoryPrompts ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Creating Prompts...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 text-[#C96442]" />
+                      <span>Create Story Prompts</span>
+                    </>
+                  )}
+                </button>
               </div>
+
+              {generatedStoryPrompts.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  {generatedStoryPrompts.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      data-testid="chat-story-prompt-card"
+                      onClick={() => onSendMessage(item.fullStoryPrompt, [], extendedThinking)}
+                      className="p-3 rounded-xl bg-[#FAF9F5] dark:bg-[#191918] border border-[#E5E2D9] dark:border-[#2C2B28] hover:border-[#C96442] dark:hover:border-[#C96442] text-left transition-colors group space-y-1"
+                    >
+                      <div className="flex items-center justify-between text-[10px] text-[#C96442] font-medium">
+                        <span>{item.genre}</span>
+                        <span>Click to write story →</span>
+                      </div>
+                      <div className="text-xs font-semibold text-[#191918] dark:text-[#ECEAE2] group-hover:text-[#C96442] transition-colors">
+                        {item.title}
+                      </div>
+                      <p className="text-[11px] text-[#6E6D68] dark:text-[#9A9890] line-clamp-2">
+                        {item.logline}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -342,10 +478,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
                                 key={att.id}
                                 className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#FAF9F5] dark:bg-[#191918] border border-[#DFDBD0] dark:border-[#33312D] text-xs"
                               >
-                                <FileCode className="w-3.5 h-3.5 text-[#C96442]" />
-                                <span className="font-medium truncate max-w-[160px]">
+                                {att.isPdf || att.mimeType === 'application/pdf' ? (
+                                  <FileText className="w-3.5 h-3.5 text-[#C96442]" />
+                                ) : (
+                                  <FileCode className="w-3.5 h-3.5 text-[#C96442]" />
+                                )}
+                                <span className="font-medium truncate max-w-[180px]">
                                   {att.name}
                                 </span>
+                                {(att.isPdf || att.mimeType === 'application/pdf') && (
+                                  <span className="text-[10px] font-claude-mono text-[#C96442]">
+                                    PDF
+                                  </span>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -410,6 +555,29 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     <div className="font-claude-serif text-[16px] leading-[1.7] text-[#191918] dark:text-[#ECEAE2] space-y-3">
                       <FormattedMessageBody content={msg.content} />
                     </div>
+
+                    {/* Google Search & Maps Grounding Citations */}
+                    {msg.citations && msg.citations.length > 0 && (
+                      <div className="pt-2 flex flex-wrap gap-2">
+                        {msg.citations.map((cit, cIdx) => (
+                          <a
+                            key={cIdx}
+                            href={cit.uri}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F3F1EA] dark:bg-[#21201E] border border-[#E5E2D9] dark:border-[#2C2B28] text-xs text-[#C96442] hover:underline"
+                          >
+                            {cit.sourceType === 'maps' ? (
+                              <MapPin className="w-3 h-3" />
+                            ) : (
+                              <Globe className="w-3 h-3" />
+                            )}
+                            <span className="truncate max-w-[200px]">{cit.title}</span>
+                            <ExternalLink className="w-3 h-3 opacity-70" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Attached Interactive Artifact Cards */}
                     {msg.artifacts && msg.artifacts.length > 0 && (
@@ -522,32 +690,39 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 }
                 onTriggerFileUpload={() => fileInputRef.current?.click()}
                 onTriggerSnippetModal={() => setShowSnippetModal(true)}
+                onTriggerVoiceDictate={handleVoiceDictate}
+                isDictating={isDictating}
                 selectedModelId={thread.modelId}
                 onChangeModelId={onChangeModelId}
                 selectedStyleId={thread.styleId}
                 onChangeStyleId={onChangeStyleId}
                 extendedThinking={thread.extendedThinking}
                 onToggleExtendedThinking={onToggleExtendedThinking}
+                useGoogleSearch={useGoogleSearch}
+                onToggleGoogleSearch={onToggleGoogleSearch}
+                useGoogleMaps={useGoogleMaps}
+                onToggleGoogleMaps={onToggleGoogleMaps}
                 projects={projects}
                 selectedProjectId={thread.projectId || null}
                 onChangeProjectId={onChangeProjectId}
                 isStreaming={isStreaming}
                 onStopStreaming={onStopStreaming}
-                placeholder="Reply to Claude..."
+                placeholder="Reply to Claude or attach a PDF..."
               />
             </div>
           </div>
         </>
       )}
 
-      {/* Hidden File Input */}
+      {/* Hidden File Input (supports PDF, images, and code/text) */}
       <input
         ref={fileInputRef}
         type="file"
         multiple
+        accept=".pdf,application/pdf,image/*,text/*,.md,.json,.ts,.tsx,.js,.py,.sql,.csv"
         onChange={handleFileChange}
         className="hidden"
-        aria-label="Upload file attachment"
+        aria-label="Upload PDF or file attachment"
       />
 
       {/* Paste Code / Text Snippet Modal */}
@@ -625,12 +800,18 @@ interface ComposerBoxProps {
   onRemoveAttachment: (id: string) => void;
   onTriggerFileUpload: () => void;
   onTriggerSnippetModal: () => void;
+  onTriggerVoiceDictate: () => void;
+  isDictating: boolean;
   selectedModelId: ClaudeModelId;
   onChangeModelId: (m: ClaudeModelId) => void;
   selectedStyleId: WritingStyleId;
   onChangeStyleId: (s: WritingStyleId) => void;
   extendedThinking: boolean;
   onToggleExtendedThinking: () => void;
+  useGoogleSearch: boolean;
+  onToggleGoogleSearch: () => void;
+  useGoogleMaps: boolean;
+  onToggleGoogleMaps: () => void;
   projects: ProjectItem[];
   selectedProjectId: string | null;
   onChangeProjectId: (p: string | null) => void;
@@ -648,12 +829,18 @@ const ComposerBox: React.FC<ComposerBoxProps> = ({
   onRemoveAttachment,
   onTriggerFileUpload,
   onTriggerSnippetModal,
+  onTriggerVoiceDictate,
+  isDictating,
   selectedModelId,
   onChangeModelId,
   selectedStyleId,
   onChangeStyleId,
   extendedThinking,
   onToggleExtendedThinking,
+  useGoogleSearch,
+  onToggleGoogleSearch,
+  useGoogleMaps,
+  onToggleGoogleMaps,
   projects,
   selectedProjectId,
   onChangeProjectId,
@@ -674,7 +861,11 @@ const ComposerBox: React.FC<ComposerBoxProps> = ({
               key={att.id}
               className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#FAF9F5] dark:bg-[#191918] border border-[#DFDBD0] dark:border-[#33312D] text-xs"
             >
-              <FileCode className="w-3.5 h-3.5 text-[#C96442]" />
+              {att.isPdf || att.mimeType === 'application/pdf' ? (
+                <FileText className="w-3.5 h-3.5 text-[#C96442]" />
+              ) : (
+                <FileCode className="w-3.5 h-3.5 text-[#C96442]" />
+              )}
               <span className="truncate max-w-[140px] text-[#191918] dark:text-[#ECEAE2]">
                 {att.name}
               </span>
@@ -704,13 +895,12 @@ const ComposerBox: React.FC<ComposerBoxProps> = ({
 
       {/* Bottom Controls Toolbar */}
       <div className="mt-2 pt-2 border-t border-[#E5E2D9]/80 dark:border-[#2C2B28] flex items-center justify-between gap-2">
-        {/* Left Controls: Attach, Model Selector, Extended Thinking, Writing Style, Project */}
         <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto py-0.5">
           <button
             type="button"
             onClick={onTriggerFileUpload}
-            aria-label="Attach file"
-            title="Attach file"
+            aria-label="Attach PDF or file"
+            title="Attach PDF, image, or text file"
             className="p-1.5 rounded-lg text-[#5A5955] dark:text-[#A3A19A] hover:bg-[#E5E1D6] dark:hover:bg-[#2C2B28] transition-colors shrink-0"
           >
             <Paperclip className="w-4 h-4" />
@@ -724,6 +914,20 @@ const ComposerBox: React.FC<ComposerBoxProps> = ({
             className="p-1.5 rounded-lg text-[#5A5955] dark:text-[#A3A19A] hover:bg-[#E5E1D6] dark:hover:bg-[#2C2B28] transition-colors shrink-0"
           >
             <FileCode className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={onTriggerVoiceDictate}
+            aria-label="Voice dictation"
+            title="Voice dictation (gemini-3.5-transcribe)"
+            className={`p-1.5 rounded-lg transition-colors shrink-0 ${
+              isDictating
+                ? 'bg-[#C96442] text-white'
+                : 'text-[#5A5955] dark:text-[#A3A19A] hover:bg-[#E5E1D6] dark:hover:bg-[#2C2B28]'
+            }`}
+          >
+            <Mic className="w-4 h-4" />
           </button>
 
           {/* Model Picker */}
@@ -755,6 +959,38 @@ const ComposerBox: React.FC<ComposerBoxProps> = ({
             <span>Thinking</span>
           </button>
 
+          {/* Google Search Grounding Toggle */}
+          <button
+            type="button"
+            onClick={onToggleGoogleSearch}
+            aria-pressed={useGoogleSearch}
+            title="Ground responses with Google Search (gemini-3.8-flash)"
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+              useGoogleSearch
+                ? 'bg-[#C96442]/15 text-[#C96442] border border-[#C96442]/40'
+                : 'bg-[#EAE7DD] dark:bg-[#2A2926] text-[#5A5955] dark:text-[#A3A19A]'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5 shrink-0" />
+            <span>Search</span>
+          </button>
+
+          {/* Google Maps Grounding Toggle */}
+          <button
+            type="button"
+            onClick={onToggleGoogleMaps}
+            aria-pressed={useGoogleMaps}
+            title="Ground responses with Google Maps (gemini-3.8-flash)"
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+              useGoogleMaps
+                ? 'bg-[#C96442]/15 text-[#C96442] border border-[#C96442]/40'
+                : 'bg-[#EAE7DD] dark:bg-[#2A2926] text-[#5A5955] dark:text-[#A3A19A]'
+            }`}
+          >
+            <MapPin className="w-3.5 h-3.5 shrink-0" />
+            <span>Maps</span>
+          </button>
+
           {/* Writing Style Selector */}
           <div className="relative flex items-center shrink-0">
             <Feather className="w-3 h-3 text-[#6E6D68] absolute left-2 pointer-events-none" />
@@ -779,7 +1015,7 @@ const ComposerBox: React.FC<ComposerBoxProps> = ({
               aria-label="Select project context"
               value={selectedProjectId || ''}
               onChange={(e) => onChangeProjectId(e.target.value ? e.target.value : null)}
-              className="pl-6 pr-2 py-1 rounded-lg text-xs font-medium bg-[#EAE7DD] dark:bg-[#2A2926] text-[#5A5955] dark:text-[#A3A19A] focus:outline-none cursor-pointer max-w-[135px] truncate"
+              className="pl-6 pr-2 py-1 rounded-lg text-xs font-medium bg-[#EAE7DD] dark:bg-[#2A2926] text-[#5A5955] dark:text-[#A3A19A] focus:outline-none cursor-pointer max-w-[130px] truncate"
             >
               <option value="">No project</option>
               {projects.map((p) => (
@@ -817,6 +1053,7 @@ const ComposerBox: React.FC<ComposerBoxProps> = ({
     </form>
   );
 };
+
 
 /**
  * Renders Claude prose with clean headings, bullet lists, inline code, and code blocks.
