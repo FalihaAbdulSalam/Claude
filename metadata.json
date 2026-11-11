@@ -1,0 +1,6 @@
+{
+  "name": "Claude AI Workspace",
+  "description": "An intelligent conversational workspace featuring split-screen interactive Artifacts, Extended Thinking reasoning traces, Projects with custom knowledge bases, and writing style controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
