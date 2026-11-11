@@ -1,4 +1,42 @@
-export type ClaudeModelId = 'claude-3-7-sonnet' | 'claude-3-5-sonnet' | 'claude-3-5-haiku' | 'claude-3-opus';
+export type ClaudeModelId =
+  | 'claude-3-7-sonnet'
+  | 'claude-3-5-sonnet'
+  | 'claude-3-5-haiku'
+  | 'claude-3-opus'
+  | 'gemini-4-argon'
+  | 'gemini-4-carbon'
+  | 'gemini-3-8-flash'
+  | 'gemini-3-1-flash-lite'
+  | 'gpt-4o-omni'
+  | 'openai-o3-mini'
+  | 'deepseek-r1'
+  | 'deepseek-v3'
+  | 'llama-3-3-70b'
+  | 'mistral-large-2'
+  | 'qwen-2-5-coder'
+  | 'grok-3-free';
+
+export type AiModelProvider =
+  | 'Anthropic'
+  | 'Google Gemini'
+  | 'OpenAI'
+  | 'DeepSeek'
+  | 'Meta Llama'
+  | 'Mistral & Qwen'
+  | 'xAI';
+
+export interface FreeAiModelSpec {
+  id: ClaudeModelId;
+  name: string;
+  provider: AiModelProvider;
+  geminiModel: 'gemini-4-argon' | 'gemini-4-carbon' | 'gemini-3.8-flash' | 'gemini-3.1-flash-lite';
+  badge: string;
+  costBadge: '$0.00 · Free Forever';
+  contextWindow: string;
+  description: string;
+  personaPrompt: string;
+  defaultExtendedThinking?: boolean;
+}
 
 export type GeminiModelAlias =
   | 'gemini-4-argon'
@@ -138,10 +176,10 @@ export interface FableChapter {
   title: string;
   narrative: string;
   moralOrInsight: string;
-  voiceStyle: 'Fable (Warm British Storyteller)' | 'Zephyr (Clear Editorial)' | 'Fenrir (Deep Resonance)';
+  voiceStyle:
+    | 'Fable (Warm British Storyteller)'
+    | 'Zephyr (Clear Editorial)'
+    | 'Fenrir (Deep Resonance)';
   choices: string[];
   illustrationSvg: string;
 }
-
-
-

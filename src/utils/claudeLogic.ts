@@ -147,7 +147,7 @@ export function filterThreads(
 }
 
 /**
- * Builds system instruction combining Claude's persona, selected writing style, extended thinking,
+ * Builds system instruction combining the selected AI model's persona, writing style, extended thinking,
  * and optional Project instructions + knowledge base documents.
  */
 export function buildClaudeSystemInstruction(params: {
@@ -167,15 +167,40 @@ export function buildClaudeSystemInstruction(params: {
       'Write in polished, executive-grade formal prose suitable for technical specifications, policy memos, and institutional briefs.',
   };
 
+  const modelPersonas: Partial<Record<ClaudeModelId, string>> = {
+    'deepseek-r1':
+      'You are operating as DeepSeek-R1 (671B open-weights reasoning model). Always include a detailed <thinking>...</thinking> chain-of-thought derivation before your final answer.',
+    'deepseek-v3':
+      'You are operating as DeepSeek-V3 MoE (671B Mixture-of-Experts model), delivering fast, accurate code and technical synthesis.',
+    'gpt-4o-omni':
+      'You are operating as GPT-4o Omni, providing structured markdown tables, executive synthesis, and versatile multimodal problem solving.',
+    'openai-o3-mini':
+      'You are operating as OpenAI o3-mini High Reasoning, specializing in rigorous STEM, mathematics, and algorithmic verification.',
+    'llama-3-3-70b':
+      'You are operating as Meta Llama 3.3 70B Instruct, an open-weights flagship model delivering clear, structured, community-trusted responses.',
+    'mistral-large-2':
+      'You are operating as Mistral Large 2 / Codestral, specializing in European multilingual precision and clean systems engineering.',
+    'qwen-2-5-coder':
+      'You are operating as Qwen 2.5 Coder 32B Max, specializing in full-stack code generation, SQL schemas, and interactive HTML/SVG Artifacts.',
+    'grok-3-free':
+      'You are operating as xAI Grok 3 Thinking, reasoning from first principles with quantitative clarity and directness.',
+  };
+
   const parts: string[] = [
-    'You are Claude, an AI assistant created by Anthropic to be helpful, harmless, and honest.',
+    modelPersonas[params.modelId] ||
+      'You are Claude, an AI assistant created by Anthropic to be helpful, harmless, and honest.',
     styleGuides[params.styleId] || styleGuides.normal,
     'When generating substantial self-contained code, interactive HTML/CSS/JS widgets, dashboards, SVG diagrams, or structured documents, wrap them in an XML tag like this so they open in the side-by-side Artifacts panel:',
     '<artifact title="Descriptive Title" type="html" language="html">...complete self-contained code...</artifact>',
     'Supported artifact type values: "html" (for interactive HTML/CSS/JS interfaces and charts), "svg" (for standalone vector graphics), "markdown" (for long-form documents/specs), or "code" (for TypeScript/Python/SQL modules).',
   ];
 
-  if (params.extendedThinking) {
+  if (
+    params.extendedThinking ||
+    params.modelId === 'deepseek-r1' ||
+    params.modelId === 'openai-o3-mini' ||
+    params.modelId === 'grok-3-free'
+  ) {
     parts.push(
       'Before providing your final response, include a <thinking>...</thinking> block where you carefully reason through the problem, edge cases, and architecture step by step.'
     );
@@ -211,7 +236,7 @@ export function deriveThreadTitle(firstPrompt: string): string {
 }
 
 /**
- * Maps Claude model selector IDs to the corresponding Gemini model aliases.
+ * Maps any of the 16 universal AI model selector IDs to the corresponding free-tier Gemini model aliases.
  * When Google Search or Google Maps grounding is requested, routes to gemini-3.8-flash.
  */
 export function mapClaudeToGeminiModel(
@@ -223,12 +248,24 @@ export function mapClaudeToGeminiModel(
   }
   switch (modelId) {
     case 'claude-3-opus':
+    case 'gemini-4-carbon':
+    case 'qwen-2-5-coder':
       return 'gemini-4-carbon';
     case 'claude-3-7-sonnet':
+    case 'gemini-4-argon':
+    case 'openai-o3-mini':
+    case 'deepseek-r1':
       return 'gemini-4-argon';
     case 'claude-3-5-haiku':
+    case 'gemini-3-1-flash-lite':
       return 'gemini-3.1-flash-lite';
     case 'claude-3-5-sonnet':
+    case 'gemini-3-8-flash':
+    case 'gpt-4o-omni':
+    case 'deepseek-v3':
+    case 'llama-3-3-70b':
+    case 'mistral-large-2':
+    case 'grok-3-free':
     default:
       return 'gemini-3.8-flash';
   }

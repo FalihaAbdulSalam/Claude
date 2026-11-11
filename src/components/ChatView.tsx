@@ -369,8 +369,53 @@ export const ChatView: React.FC<ChatViewProps> = ({
               onChangeProjectId={onChangeProjectId}
               isStreaming={isStreaming}
               onStopStreaming={onStopStreaming}
-              placeholder="Attach a PDF document, enable Web/Maps grounding, or ask Claude for interactive HTML & SVG Artifacts..."
+              placeholder="Attach a PDF document, enable Web/Maps grounding, or ask any of the 16 free AI models..."
             />
+
+            {/* Universal 16 Free AI Models ($0.00) Selector Strip */}
+            <div
+              data-testid="chat-free-models-strip"
+              className="mt-5 rounded-2xl bg-[#F3F1EA] dark:bg-[#21201E] border border-[#E5E2D9] dark:border-[#2C2B28] p-3.5 space-y-2.5"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-[#191918] dark:text-[#ECEAE2]">
+                  <Sparkles className="w-3.5 h-3.5 text-[#C96442]" />
+                  <span>All 16 AI Models Included ($0.00 Free Forever — No Paid Key Needed)</span>
+                </div>
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-[#E6F2EC] dark:bg-[#1E352B] text-[#2E5A44] dark:text-[#7AD1A5]">
+                  Active: {currentModel.name} ({currentModel.provider})
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {CLAUDE_MODELS.map((m) => {
+                  const active = m.id === selectedModelId;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      data-testid={`chat-model-pill-${m.id}`}
+                      onClick={() => onChangeModelId(m.id)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1.5 ${
+                        active
+                          ? 'bg-[#C96442] text-white shadow-2xs'
+                          : 'bg-[#FAF9F5] dark:bg-[#191918] text-[#5A5955] dark:text-[#A3A19A] border border-[#E5E2D9] dark:border-[#2C2B28] hover:border-[#C96442]'
+                      }`}
+                    >
+                      <span>{m.name.replace(/\s*\([^)]*\)/g, '')}</span>
+                      <span
+                        className={`text-[9px] px-1 rounded ${
+                          active
+                            ? 'bg-white/20 text-white'
+                            : 'bg-[#EAE7DD] dark:bg-[#2A2926] text-[#C96442]'
+                        }`}
+                      >
+                        $0
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* On-Demand AI Story Prompt Generator (Zero Static Prompts) */}
             <div
@@ -930,17 +975,31 @@ const ComposerBox: React.FC<ComposerBoxProps> = ({
             <Mic className="w-4 h-4" />
           </button>
 
-          {/* Model Picker */}
+          {/* Model Picker (All 16 Free AI Models across 7 Providers) */}
           <select
             aria-label="Select Claude model"
             value={selectedModelId}
             onChange={(e) => onChangeModelId(e.target.value as ClaudeModelId)}
-            className="px-2 py-1 rounded-lg text-xs font-medium bg-[#EAE7DD] dark:bg-[#2A2926] text-[#191918] dark:text-[#ECEAE2] focus:outline-none cursor-pointer shrink-0"
+            className="px-2 py-1 rounded-lg text-xs font-medium bg-[#EAE7DD] dark:bg-[#2A2926] text-[#191918] dark:text-[#ECEAE2] focus:outline-none cursor-pointer shrink-0 max-w-[215px] truncate"
           >
-            {CLAUDE_MODELS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
+            {(
+              [
+                'Anthropic',
+                'Google Gemini',
+                'OpenAI',
+                'DeepSeek',
+                'Meta Llama',
+                'Mistral & Qwen',
+                'xAI',
+              ] as const
+            ).map((provider) => (
+              <optgroup key={provider} label={`${provider} ($0.00 Free)`}>
+                {CLAUDE_MODELS.filter((m) => m.provider === provider).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
 

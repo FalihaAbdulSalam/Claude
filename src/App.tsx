@@ -862,6 +862,18 @@ export default function App() {
           <FableAndFreeApisView
             projects={projects}
             activeProjectId={activeProjectId}
+            selectedModelId={selectedModelId}
+            onSelectModelForChat={(modelId, optionalPrompt) => {
+              setSelectedModelId(modelId);
+              setActiveSection('chat');
+              setActiveThreadId(null);
+              setActiveArtifact(null);
+              if (optionalPrompt) {
+                setTimeout(() => {
+                  handleSendMessage(optionalPrompt, [], true);
+                }, 30);
+              }
+            }}
             onSendToChat={(promptText) => {
               setActiveSection('chat');
               setActiveThreadId(null);

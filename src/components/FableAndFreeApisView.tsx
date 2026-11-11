@@ -14,7 +14,6 @@ import {
   Music,
   CheckCircle2,
   Feather,
-  Library,
   BookMarked,
   FileCode2,
   ChevronRight,
@@ -23,14 +22,19 @@ import {
   Check,
   Terminal,
   Wand2,
+  Cpu,
+  Layers,
 } from 'lucide-react';
 import {
+  AiModelProvider,
+  ClaudeModelId,
   FableChapter,
   FreeApiId,
   FreeApiItem,
   ProjectItem,
   StoryPromptItem,
 } from '../types/claude';
+import { CLAUDE_MODELS } from '../data/seedData';
 import {
   formatAnthropicCurlCommand,
   formatFreeApiAsKnowledgeDoc,
@@ -39,6 +43,8 @@ import {
 interface FableAndFreeApisViewProps {
   projects: ProjectItem[];
   activeProjectId: string | null;
+  selectedModelId?: ClaudeModelId;
+  onSelectModelForChat?: (modelId: ClaudeModelId, optionalPrompt?: string) => void;
   onSendToChat: (promptText: string) => void;
   onAddKnowledgeDoc: (projectId: string, doc: { title: string; content: string }) => void;
 }
@@ -53,6 +59,15 @@ interface FreeApiCatalogEntry {
   placeholder: string;
   description: string;
   category: 'Anthropic & AI' | 'Fable & Books' | 'Research & Encyclopedia' | 'Telemetry & World';
+}
+
+interface ModelArenaComparisonItem {
+  modelId: string;
+  modelName: string;
+  provider: string;
+  cost: string;
+  styleNote: string;
+  output: string;
 }
 
 const FREE_API_CATALOG: FreeApiCatalogEntry[] = [
@@ -176,17 +191,45 @@ const STORY_GENRES = [
   'Interactive RPG',
 ] as const;
 
+const MODEL_PROVIDER_FILTERS: Array<'All Providers' | AiModelProvider> = [
+  'All Providers',
+  'Anthropic',
+  'Google Gemini',
+  'OpenAI',
+  'DeepSeek',
+  'Meta Llama',
+  'Mistral & Qwen',
+  'xAI',
+];
+
 export const FableAndFreeApisView: React.FC<FableAndFreeApisViewProps> = ({
   projects,
   activeProjectId,
+  selectedModelId = 'claude-3-7-sonnet',
+  onSelectModelForChat,
   onSendToChat,
   onAddKnowledgeDoc,
 }) => {
-  const [activeTab, setActiveTab] = useState<'fable-studio' | 'free-apis'>('fable-studio');
+  const [activeTab, setActiveTab] = useState<'all-ai-models' | 'fable-studio' | 'free-apis'>(
+    'all-ai-models'
+  );
   const [targetProjectId, setTargetProjectId] = useState<string>(
     activeProjectId || projects[0]?.id || ''
   );
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Universal Free AI Models Hub State
+  const [providerFilter, setProviderFilter] = useState<'All Providers' | AiModelProvider>(
+    'All Providers'
+  );
+  const [arenaPrompt, setArenaPrompt] = useState<string>('');
+  const [arenaSelectedModels, setArenaSelectedModels] = useState<ClaudeModelId[]>([
+    'claude-3-7-sonnet',
+    'deepseek-r1',
+    'gpt-4o-omni',
+  ]);
+  const [arenaResults, setArenaResults] = useState<ModelArenaComparisonItem[]>([]);
+  const [isRunningArena, setIsRunningArena] = useState<boolean>(false);
 
   // Fable Studio State (starts empty with zero static chapters)
   const [chapters, setChapters] = useState<FableChapter[]>([]);
@@ -244,6 +287,46 @@ export const FableAndFreeApisView: React.FC<FableAndFreeApisViewProps> = ({
       }
     };
   }, []);
+
+  const toggleModelInArena = (id: ClaudeModelId) => {
+    setArenaSelectedModels((prev) => {
+      if (prev.includes(id)) {
+        if (prev.length <= 1) return prev;
+        return prev.filter((m) => m !== id);
+      }
+      if (prev.length >= 4) {
+        return [...prev.slice(1), id];
+      }
+      return [...prev, id];
+    });
+  };
+
+  const handleRunModelArena = async () => {
+    setIsRunningArena(true);
+    try {
+      const response = await fetch('/api/models/compare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt:
+            arenaPrompt.trim() ||
+            'Explain how to design a fault-tolerant distributed system and write a clean TypeScript health-check module.',
+          modelIds: arenaSelectedModels,
+        }),
+      });
+      const data = await response.json();
+      if (Array.isArray(data.results)) {
+        setArenaResults(data.results);
+        showToast(
+          `Compared ${data.results.length} AI models side-by-side for $0.00 (100% Free)!`
+        );
+      }
+    } catch {
+      showToast('Could not run model comparison right now.');
+    } finally {
+      setIsRunningArena(false);
+    }
+  };
 
   const handleGenerateStoryPrompts = async (customGenre?: string, customTheme?: string) => {
     const genreToUse = customGenre || storyGenre;
@@ -521,6 +604,11 @@ export const FableAndFreeApisView: React.FC<FableAndFreeApisViewProps> = ({
       ? FREE_API_CATALOG
       : FREE_API_CATALOG.filter((c) => c.category === categoryFilter);
 
+  const filteredFreeModels =
+    providerFilter === 'All Providers'
+      ? CLAUDE_MODELS
+      : CLAUDE_MODELS.filter((m) => m.provider === providerFilter);
+
   const resolvedEndpointPreview = selectedApiMeta.endpointPattern.replace(
     /\{(query|word|country)\}/g,
     encodeURIComponent(apiQueryInput || selectedApiMeta.defaultQuery)
@@ -533,20 +621,33 @@ export const FableAndFreeApisView: React.FC<FableAndFreeApisViewProps> = ({
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-[#E5E3DA] dark:border-[#2C2B28]">
           <div className="space-y-1.5">
             <div className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-[#C96442]">
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>AI Story Prompt Architect · Fable Studio &amp; Live APIs</span>
+              <Cpu className="w-3.5 h-3.5" />
+              <span>$0.00 Universal AI Models · Fable Studio &amp; Free APIs</span>
             </div>
             <h1 className="font-claude-serif text-2xl sm:text-3xl font-semibold tracking-tight text-[#141413] dark:text-[#F4F3EE]">
-              Fable Studio, Story Prompts &amp; API Hub
+              All 16 Free AI Models, Fable Studio &amp; Live APIs
             </h1>
             <p className="text-sm text-[#6B6962] dark:text-[#9E9C94] max-w-2xl">
-              Generate tailored story prompts on demand, weave interactive fables with expressive voice narration, and inspect live endpoints including Anthropic Organization API keys (`v1/organizations/api_keys`).
+              Use all 16 major AI models (Claude 3.7/Opus, Gemini 4, GPT-4o, OpenAI o3-mini, DeepSeek-R1 671B, Llama 3.3, Mistral, Qwen 2.5, Grok 3) for <strong>$0.00 / 100% Free Forever</strong>—no credit card or paid keys needed.
             </p>
           </div>
 
           {/* Mode Switcher & Target Project Selector */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className="inline-flex rounded-xl p-1 bg-[#EFECE3] dark:bg-[#232220] border border-[#E2DFD5] dark:border-[#32312E]">
+            <div className="inline-flex flex-wrap rounded-xl p-1 bg-[#EFECE3] dark:bg-[#232220] border border-[#E2DFD5] dark:border-[#32312E]">
+              <button
+                type="button"
+                onClick={() => setActiveTab('all-ai-models')}
+                data-testid="tab-all-ai-models"
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all ${
+                  activeTab === 'all-ai-models'
+                    ? 'bg-[#C96442] text-white shadow-xs'
+                    : 'text-[#52504A] dark:text-[#B5B3AA] hover:text-[#141413] dark:hover:text-white'
+                }`}
+              >
+                <Cpu className="w-3.5 h-3.5" />
+                <span>All 16 AI Models ($0 Free)</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('fable-studio')}
@@ -558,7 +659,7 @@ export const FableAndFreeApisView: React.FC<FableAndFreeApisViewProps> = ({
                 }`}
               >
                 <Feather className="w-3.5 h-3.5" />
-                <span>Story Prompts &amp; Fable Studio</span>
+                <span>Story Prompts &amp; Fable</span>
               </button>
               <button
                 type="button"
@@ -571,7 +672,7 @@ export const FableAndFreeApisView: React.FC<FableAndFreeApisViewProps> = ({
                 }`}
               >
                 <Globe className="w-3.5 h-3.5" />
-                <span>Anthropic &amp; Free APIs (9 Live)</span>
+                <span>Anthropic &amp; Free APIs (9)</span>
               </button>
             </div>
 
@@ -600,6 +701,233 @@ export const FableAndFreeApisView: React.FC<FableAndFreeApisViewProps> = ({
           <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-[#2E5A44] text-white text-xs font-medium shadow-sm">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{toastMessage}</span>
+          </div>
+        )}
+
+        {/* TAB 0: ALL 16 FREE AI MODELS ($0.00 FOREVER) & MULTI-MODEL ARENA */}
+        {activeTab === 'all-ai-models' && (
+          <div className="space-y-6">
+            {/* Zero-Cost Guarantee Callout Banner */}
+            <div className="rounded-2xl bg-gradient-to-r from-[#1F3A2D] via-[#264637] to-[#1A2F25] text-white p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xs">
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#8CE2B5]">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>100% Free Built-In AI Router · $0.00 Subscription · No Credit Card Required</span>
+                </div>
+                <h2 className="font-claude-serif text-xl sm:text-2xl font-semibold">
+                  Every Major AI Model Family — Included Free in Your Workspace
+                </h2>
+                <p className="text-xs sm:text-sm text-[#D7EDE1] max-w-3xl leading-relaxed">
+                  You never need to buy separate subscriptions for Claude, ChatGPT/o3, DeepSeek-R1, Gemini, Llama, Mistral, Qwen, or Grok. All 16 models below run through our built-in zero-cost AI Studio server router for <strong>$0.00</strong>.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row lg:flex-col gap-2 shrink-0">
+                <div className="px-3.5 py-2 rounded-xl bg-white/10 border border-white/15 text-xs font-medium text-center">
+                  Active Chat Model:{' '}
+                  <strong className="text-[#8CE2B5]">
+                    {CLAUDE_MODELS.find((m) => m.id === selectedModelId)?.name}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Side-by-Side Free Multi-Model Arena Comparison Box */}
+            <div className="bg-white dark:bg-[#22211F] border border-[#E5E3DA] dark:border-[#302F2C] rounded-2xl p-5 sm:p-6 space-y-4 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="space-y-0.5">
+                  <h3 className="font-claude-serif text-lg font-semibold flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-[#C96442]" />
+                    <span>Free Multi-Model Arena — Compare Models Side-by-Side ($0.00)</span>
+                  </h3>
+                  <p className="text-xs text-[#6B6962] dark:text-[#9E9C94]">
+                    Select up to 4 AI models below and run any prompt to compare their reasoning styles simultaneously for free.
+                  </p>
+                </div>
+                <span className="text-xs font-medium px-2.5 py-1 rounded-lg bg-[#E6F2EC] dark:bg-[#1E352B] text-[#2E5A44] dark:text-[#7AD1A5] shrink-0">
+                  {arenaSelectedModels.length} Models Selected · $0.00
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <input
+                  type="text"
+                  value={arenaPrompt}
+                  onChange={(e) => setArenaPrompt(e.target.value)}
+                  placeholder="Enter any prompt to compare across models (e.g. Write a binary search tree in TypeScript, or Explain black hole entropy)..."
+                  data-testid="model-arena-prompt-input"
+                  className="flex-1 px-3.5 py-2.5 rounded-xl border border-[#DFDCD2] dark:border-[#353430] bg-[#FAF9F5] dark:bg-[#191918] text-xs sm:text-sm text-[#141413] dark:text-[#F4F3EE] focus:outline-none focus:border-[#C96442]"
+                />
+                <button
+                  type="button"
+                  disabled={isRunningArena}
+                  onClick={handleRunModelArena}
+                  data-testid="run-model-arena-btn"
+                  className="px-5 py-2.5 rounded-xl bg-[#C96442] hover:bg-[#B55636] disabled:opacity-60 text-white text-xs font-medium transition-colors flex items-center justify-center gap-2 shrink-0"
+                >
+                  {isRunningArena ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Comparing Models...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Compare Selected Models ($0)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {arenaResults.length > 0 && (
+                <div
+                  data-testid="model-arena-results"
+                  className="grid grid-cols-1 md:grid-cols-3 gap-3.5 pt-2"
+                >
+                  {arenaResults.map((resItem) => (
+                    <div
+                      key={resItem.modelId}
+                      data-testid="model-arena-result-card"
+                      className="p-4 rounded-xl bg-[#FAF9F5] dark:bg-[#191918] border border-[#E5E3DA] dark:border-[#32312E] flex flex-col justify-between gap-3"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="text-[10px] font-semibold uppercase tracking-wider text-[#C96442]">
+                              {resItem.provider}
+                            </div>
+                            <h4 className="font-claude-serif text-sm font-semibold text-[#141413] dark:text-[#F4F3EE]">
+                              {resItem.modelName}
+                            </h4>
+                          </div>
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-[#E6F2EC] dark:bg-[#1E352B] text-[#2E5A44] dark:text-[#7AD1A5] shrink-0">
+                            {resItem.cost}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-[#78756E] dark:text-[#9E9C94] italic">
+                          {resItem.styleNote}
+                        </div>
+                        <div className="text-xs text-[#2B2A27] dark:text-[#E5E3DA] whitespace-pre-wrap leading-relaxed pt-1 border-t border-[#ECE9E0] dark:border-[#2B2A27]">
+                          {resItem.output}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onSelectModelForChat) {
+                            onSelectModelForChat(resItem.modelId as ClaudeModelId);
+                          }
+                        }}
+                        className="w-full py-1.5 px-3 rounded-lg bg-[#EFECE3] dark:bg-[#2A2926] hover:bg-[#C96442] hover:text-white text-xs font-medium transition-colors"
+                      >
+                        Switch Chat to {resItem.modelName.split(' (')[0]}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Provider Filter Pills */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {MODEL_PROVIDER_FILTERS.map((prov) => (
+                  <button
+                    key={prov}
+                    type="button"
+                    onClick={() => setProviderFilter(prov)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                      providerFilter === prov
+                        ? 'bg-[#141413] dark:bg-[#F4F3EE] text-white dark:text-[#141413]'
+                        : 'bg-[#EFECE3] dark:bg-[#252422] text-[#52504A] dark:text-[#B5B3AA] hover:bg-[#E4E0D4]'
+                    }`}
+                  >
+                    {prov}
+                  </button>
+                ))}
+              </div>
+              <span className="text-xs text-[#6B6962] dark:text-[#9E9C94]">
+                Showing {filteredFreeModels.length} of {CLAUDE_MODELS.length} Free AI Models
+              </span>
+            </div>
+
+            {/* 16 Universal Free AI Model Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredFreeModels.map((model) => {
+                const isCurrentChatModel = model.id === selectedModelId;
+                const isInArena = arenaSelectedModels.includes(model.id);
+                return (
+                  <div
+                    key={model.id}
+                    data-testid={`free-ai-model-card-${model.id}`}
+                    className={`rounded-2xl p-5 border transition-all flex flex-col justify-between gap-4 ${
+                      isCurrentChatModel
+                        ? 'bg-white dark:bg-[#252421] border-[#C96442] ring-1 ring-[#C96442]/30 shadow-xs'
+                        : 'bg-white dark:bg-[#22211F] border-[#E5E3DA] dark:border-[#302F2C] hover:border-[#C96442]/60'
+                    }`}
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-[#C96442]">
+                          {model.provider}
+                        </span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#E6F2EC] dark:bg-[#1E352B] text-[#2E5A44] dark:text-[#7AD1A5]">
+                          {model.costBadge}
+                        </span>
+                      </div>
+
+                      <h3 className="font-claude-serif text-base font-semibold text-[#141413] dark:text-[#F4F3EE]">
+                        {model.name}
+                      </h3>
+
+                      <p className="text-xs text-[#52504A] dark:text-[#B5B3AA] leading-relaxed">
+                        {model.description}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-[#F3EFE4] dark:bg-[#2E2C28] text-[#52504A] dark:text-[#B5B3AA]">
+                          {model.badge}
+                        </span>
+                        <span className="text-[10px] font-claude-mono px-2 py-0.5 rounded bg-[#F3EFE4] dark:bg-[#2E2C28] text-[#6B6962] dark:text-[#9E9C94]">
+                          Context: {model.contextWindow}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-3 border-t border-[#ECE9E0] dark:border-[#2E2D2A]">
+                      <button
+                        type="button"
+                        data-testid={`use-free-model-btn-${model.id}`}
+                        onClick={() => {
+                          if (onSelectModelForChat) {
+                            onSelectModelForChat(model.id);
+                          }
+                        }}
+                        className={`flex-1 py-2 px-3 rounded-xl text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
+                          isCurrentChatModel
+                            ? 'bg-[#2E5A44] text-white'
+                            : 'bg-[#C96442] hover:bg-[#B55636] text-white'
+                        }`}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>{isCurrentChatModel ? 'Active in Chat' : 'Use Free in Chat'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleModelInArena(model.id)}
+                        className={`py-2 px-3 rounded-xl text-xs font-medium border transition-colors ${
+                          isInArena
+                            ? 'bg-[#141413] dark:bg-[#F4F3EE] text-white dark:text-[#141413] border-transparent'
+                            : 'border-[#DFDCD2] dark:border-[#353430] text-[#52504A] dark:text-[#B5B3AA] hover:border-[#C96442]'
+                        }`}
+                      >
+                        {isInArena ? 'In Arena ✓' : '+ Arena'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

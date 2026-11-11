@@ -160,19 +160,32 @@ test('deriveThreadTitle truncates long prompts cleanly', () => {
   assert.ok(title.length <= 48);
 });
 
-test('mapClaudeToGeminiModel maps tiers and enforces gemini-3.8-flash for Search/Maps grounding', () => {
+test('mapClaudeToGeminiModel maps all 16 universal free AI models and enforces gemini-3.8-flash for Search/Maps grounding', () => {
   assert.equal(mapClaudeToGeminiModel('claude-3-opus'), 'gemini-4-carbon');
+  assert.equal(mapClaudeToGeminiModel('qwen-2-5-coder'), 'gemini-4-carbon');
   assert.equal(mapClaudeToGeminiModel('claude-3-7-sonnet'), 'gemini-4-argon');
+  assert.equal(mapClaudeToGeminiModel('deepseek-r1'), 'gemini-4-argon');
+  assert.equal(mapClaudeToGeminiModel('openai-o3-mini'), 'gemini-4-argon');
   assert.equal(mapClaudeToGeminiModel('claude-3-5-sonnet'), 'gemini-3.8-flash');
+  assert.equal(mapClaudeToGeminiModel('gpt-4o-omni'), 'gemini-3.8-flash');
+  assert.equal(mapClaudeToGeminiModel('llama-3-3-70b'), 'gemini-3.8-flash');
   assert.equal(mapClaudeToGeminiModel('claude-3-5-haiku'), 'gemini-3.1-flash-lite');
   assert.equal(
     mapClaudeToGeminiModel('claude-3-opus', { useGoogleSearch: true }),
     'gemini-3.8-flash'
   );
   assert.equal(
-    mapClaudeToGeminiModel('claude-3-7-sonnet', { useGoogleMaps: true }),
+    mapClaudeToGeminiModel('deepseek-r1', { useGoogleMaps: true }),
     'gemini-3.8-flash'
   );
+
+  const deepseekSys = buildClaudeSystemInstruction({
+    modelId: 'deepseek-r1',
+    styleId: 'normal',
+    extendedThinking: false,
+  });
+  assert.ok(deepseekSys.includes('DeepSeek-R1'));
+  assert.ok(deepseekSys.includes('<thinking>...</thinking>'));
 });
 
 test('estimatePdfMetrics and computeArenaOrbCollection work deterministically', () => {
