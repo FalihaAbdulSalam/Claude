@@ -1,8 +1,9 @@
 export type ClaudeModelId =
-  | 'claude-3-7-sonnet'
-  | 'claude-3-5-sonnet'
-  | 'claude-3-5-haiku'
-  | 'claude-3-opus'
+  | 'claude-sonnet-5-5'
+  | 'claude-opus-5-5'
+  | 'claude-fable-5-2'
+  | 'claude-mythos-5-2'
+  | 'claude-haiku-5-5'
   | 'gemini-4-argon'
   | 'gemini-4-carbon'
   | 'gemini-3-8-flash'
@@ -50,6 +51,7 @@ export type WorkspaceSection =
   | 'artifacts'
   | 'studio'
   | 'fable'
+  | 'career'
   | 'maps'
   | 'spatial3d';
 

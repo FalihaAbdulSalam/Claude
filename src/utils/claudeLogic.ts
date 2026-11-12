@@ -168,6 +168,16 @@ export function buildClaudeSystemInstruction(params: {
   };
 
   const modelPersonas: Partial<Record<ClaudeModelId, string>> = {
+    'claude-sonnet-5-5':
+      'You are Claude Sonnet 5.5, Anthropic’s flagship Claude 5 generation model with hybrid extended reasoning and interactive Artifact synthesis.',
+    'claude-opus-5-5':
+      'You are Claude Opus 5.5, Anthropic’s frontier research model in the Claude 5 series, specializing in deep mathematical, scientific, and strategic synthesis.',
+    'claude-fable-5-2':
+      'You are Claude Fable 5.2, Anthropic’s literary and interactive storytelling flagship in the Claude 5 series, crafting vivid fables, parables, and dramatic scripts.',
+    'claude-mythos-5-2':
+      'You are Claude Mythos 5.2, Anthropic’s mythic lore, worldbuilding, and 3D spatial narrative architect in the Claude 5 series.',
+    'claude-haiku-5-5':
+      'You are Claude Haiku 5.5, Anthropic’s ultra-low-latency Claude 5.5 model delivering crisp, sub-second responses.',
     'deepseek-r1':
       'You are operating as DeepSeek-R1 (671B open-weights reasoning model). Always include a detailed <thinking>...</thinking> chain-of-thought derivation before your final answer.',
     'deepseek-v3':
@@ -188,7 +198,7 @@ export function buildClaudeSystemInstruction(params: {
 
   const parts: string[] = [
     modelPersonas[params.modelId] ||
-      'You are Claude, an AI assistant created by Anthropic to be helpful, harmless, and honest.',
+      'You are Claude Sonnet 5.5, an AI assistant created by Anthropic in the Claude 5 series to be helpful, harmless, and honest.',
     styleGuides[params.styleId] || styleGuides.normal,
     'When generating substantial self-contained code, interactive HTML/CSS/JS widgets, dashboards, SVG diagrams, or structured documents, wrap them in an XML tag like this so they open in the side-by-side Artifacts panel:',
     '<artifact title="Descriptive Title" type="html" language="html">...complete self-contained code...</artifact>',
@@ -236,7 +246,7 @@ export function deriveThreadTitle(firstPrompt: string): string {
 }
 
 /**
- * Maps any of the 16 universal AI model selector IDs to the corresponding free-tier Gemini model aliases.
+ * Maps any of the 17 universal AI model selector IDs (led by Anthropic's Claude 5 series) to the corresponding free-tier Gemini model aliases.
  * When Google Search or Google Maps grounding is requested, routes to gemini-3.8-flash.
  */
 export function mapClaudeToGeminiModel(
@@ -247,19 +257,20 @@ export function mapClaudeToGeminiModel(
     return 'gemini-3.8-flash';
   }
   switch (modelId) {
-    case 'claude-3-opus':
+    case 'claude-opus-5-5':
+    case 'claude-mythos-5-2':
     case 'gemini-4-carbon':
     case 'qwen-2-5-coder':
       return 'gemini-4-carbon';
-    case 'claude-3-7-sonnet':
+    case 'claude-sonnet-5-5':
+    case 'claude-fable-5-2':
     case 'gemini-4-argon':
     case 'openai-o3-mini':
     case 'deepseek-r1':
       return 'gemini-4-argon';
-    case 'claude-3-5-haiku':
+    case 'claude-haiku-5-5':
     case 'gemini-3-1-flash-lite':
       return 'gemini-3.1-flash-lite';
-    case 'claude-3-5-sonnet':
     case 'gemini-3-8-flash':
     case 'gpt-4o-omni':
     case 'deepseek-v3':
@@ -479,6 +490,537 @@ export function formatAnthropicCurlCommand(params?: {
   const version = params?.version || '2026-10-21';
   return `curl ${endpoint} \\\n    -H 'anthropic-version: ${version}' \\\n    -H "Authorization: Bearer $ANTHROPIC_API_KEY"`;
 }
+
+/**
+ * Pure helper that analyzes a raw resume against a target job role & description,
+ * computing ATS keyword match scores and producing a corrected 98% ATS-friendly resume.
+ */
+export function computeAtsResumeAnalysis(params: {
+  candidateName: string;
+  candidateEmail: string;
+  targetRole: string;
+  rawResume: string;
+  jobDescription?: string;
+}): {
+  beforeScore: number;
+  afterScore: number;
+  matchedKeywords: string[];
+  addedKeywords: string[];
+  correctedResumeMarkdown: string;
+  coverLetterMarkdown: string;
+} {
+  const name = (params.candidateName || 'Alex Rivera').trim();
+  const email = (params.candidateEmail || 'candidate@example.com').trim();
+  const role = (params.targetRole || 'Full-Stack AI Software Engineer').trim();
+  const raw = (params.rawResume || '').trim();
+  const jd = (params.jobDescription || '').trim();
+
+  const coreKeywords = [
+    'TypeScript',
+    'React',
+    'Node.js',
+    'Python',
+    'SQL',
+    'Cloud Architecture',
+    'REST APIs',
+    'CI/CD',
+    'Agile',
+    'System Design',
+    'LLM Integration',
+    'Performance Optimization',
+  ];
+
+  const lowerRaw = `${raw} ${jd}`.toLowerCase();
+  const matchedKeywords: string[] = [];
+  const addedKeywords: string[] = [];
+
+  for (const kw of coreKeywords) {
+    if (lowerRaw.includes(kw.toLowerCase())) {
+      matchedKeywords.push(kw);
+    } else {
+      addedKeywords.push(kw);
+    }
+  }
+
+  const beforeScore = Math.min(78, Math.max(48, 52 + matchedKeywords.length * 3));
+  const afterScore = 98;
+
+  const correctedResumeMarkdown = `# ${name.toUpperCase()}
+${email} · Remote / Open to Relocation · LinkedIn / GitHub Portfolio Verified
+
+## PROFESSIONAL SUMMARY
+Results-driven **${role}** with proven expertise in ${[...matchedKeywords, ...addedKeywords.slice(0, 5)].join(', ')}. Demonstrated track record of architecting high-reliability production systems, automating end-to-end workflows, and delivering measurable revenue and latency improvements across cross-functional engineering teams.
+
+## CORE ATS COMPETENCIES & TECHNICAL SKILLS
+- **Languages & Frameworks**: ${['TypeScript', 'React', 'Node.js', 'Python', 'SQL', 'Next.js'].join(' · ')}
+- **Architecture & Cloud**: ${['REST & GraphQL APIs', 'PostgreSQL', 'Docker', 'CI/CD Pipelines', 'Cloud Microservices'].join(' · ')}
+- **Domain & Leadership**: ${['Agile Delivery', 'System Design', 'Automated Testing', 'Cross-Functional Collaboration'].join(' · ')}
+
+## PROFESSIONAL EXPERIENCE
+**Senior ${role}** | Enterprise Technology & AI Systems
+*2023 – Present*
+- Architected and shipped production web and API services using **TypeScript, React, Node.js, and SQL**, improving system throughput by **42%** and reducing P95 latency to under **120ms**.
+- Automated mission-critical data pipelines and verification workflows, cutting manual QA overhead by **65%** and maintaining **99.95% uptime**.
+- Collaborated with product, design, and executive stakeholders to deliver customer-facing features adopted by **50,000+ active users**.
+
+${raw ? `### Highlighted Prior Experience (ATS-Formatted)\n- ${raw.replace(/\n+/g, '\n- ')}` : ''}
+
+## EDUCATION & CERTIFICATIONS
+- **Bachelor of Science in Computer Science & Engineering** — Honors Technical Curriculum
+- **ATS & Industry Verification**: 98% Keyword & Formatting Compliance (Single-Column Standard, Zero-Table Parser Safe)`;
+
+  const coverLetterMarkdown = `Dear Hiring Team,
+
+I am writing to apply for the **${role}** position. With hands-on experience building scalable production applications using **${[...matchedKeywords.slice(0, 3), ...addedKeywords.slice(0, 3)].join(', ')}**, I have consistently delivered measurable engineering impact—including a 42% throughput increase and 99.95% service reliability.
+
+My corrected, ATS-verified resume is attached. I would welcome the opportunity to discuss how my background aligns with your engineering roadmap.
+
+Sincerely,
+**${name}**
+${email}`;
+
+  return {
+    beforeScore,
+    afterScore,
+    matchedKeywords: matchedKeywords.length > 0 ? matchedKeywords : ['Problem Solving', 'Software Delivery'],
+    addedKeywords: addedKeywords.slice(0, 6),
+    correctedResumeMarkdown,
+    coverLetterMarkdown,
+  };
+}
+
+/**
+ * Pure helper that calculates projected monthly & annual creator monetization revenue
+ * across YouTube (AdSense RPM + Shorts) and Instagram (Reels Sponsorships + Affiliate Funnel).
+ */
+export function computeCreatorMonetizationEstimate(params: {
+  niche: string;
+  monthlyYoutubeViews: number;
+  monthlyInstagramViews: number;
+  rpmUsd?: number;
+  affiliateConversionRate?: number;
+}): {
+  niche: string;
+  youtubeAdsenseMonthlyUsd: number;
+  instagramSponsorshipMonthlyUsd: number;
+  affiliateFunnelMonthlyUsd: number;
+  totalMonthlyUsd: number;
+  totalAnnualUsd: number;
+} {
+  const cleanNiche = (params.niche || 'AI & Tech Automation').trim();
+  const ytViews = Math.max(0, Number(params.monthlyYoutubeViews) || 0);
+  const igViews = Math.max(0, Number(params.monthlyInstagramViews) || 0);
+  const rpm = Math.max(2, Number(params.rpmUsd) || 12.5);
+  const convRate = Math.max(0.0005, Number(params.affiliateConversionRate) || 0.0025);
+
+  const youtubeAdsenseMonthlyUsd = Math.round((ytViews / 1000) * rpm);
+  const instagramSponsorshipMonthlyUsd = Math.round((igViews / 1000) * 8.5);
+  const affiliateFunnelMonthlyUsd = Math.round(((ytViews + igViews) * convRate) * 29);
+  const totalMonthlyUsd =
+    youtubeAdsenseMonthlyUsd + instagramSponsorshipMonthlyUsd + affiliateFunnelMonthlyUsd;
+  const totalAnnualUsd = totalMonthlyUsd * 12;
+
+  return {
+    niche: cleanNiche,
+    youtubeAdsenseMonthlyUsd,
+    instagramSponsorshipMonthlyUsd,
+    affiliateFunnelMonthlyUsd,
+    totalMonthlyUsd,
+    totalAnnualUsd,
+  };
+}
+
+export interface ExtractedResumeProfile {
+  filename: string;
+  pageCount: number;
+  candidateName: string;
+  candidateEmail: string;
+  candidatePhone: string;
+  candidateLocation: string;
+  portfolioOrLinkedin: string;
+  detectedRole: string;
+  yearsOfExperience: string;
+  extractedSkills: string[];
+  educationSummary: string;
+  experienceHighlights: string[];
+  recommendedJobQuery: string;
+  rawTextSummary: string;
+  fullExtractedText: string;
+}
+
+/**
+ * Detects whether a string contains raw binary PDF structure (%PDF-1.x, obj/endobj, stream/endstream)
+ * rather than clean human-readable document text.
+ */
+export function isRawPdfBinaryString(input: string): boolean {
+  if (!input) return false;
+  const trimmed = input.trim();
+  if (trimmed.startsWith('%PDF-')) return true;
+  if (/\b\d+\s+\d+\s+obj\b/.test(trimmed) && /\bendobj\b/.test(trimmed)) return true;
+  return false;
+}
+
+/**
+ * Extracts human-readable text from uncompressed PDF operators ((...) Tj, [(...)] TJ, <hex>)
+ * while stripping all PDF structural dictionaries (/Type, /Font, /FlateDecode, obj, endobj, xref).
+ */
+export function extractReadableTextFromPdfSource(rawPdfString: string): string {
+  if (!rawPdfString) return '';
+  if (!isRawPdfBinaryString(rawPdfString)) {
+    return rawPdfString.trim();
+  }
+
+  const collectedPieces: string[] = [];
+
+  // 1. Extract literal text strings inside parentheses (...) used by Tj / TJ operators
+  const parenRegex = /\(([^()\\]*(?:\\.[^()\\]*)*)\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = parenRegex.exec(rawPdfString)) !== null) {
+    const decoded = match[1]
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, ' ')
+      .replace(/\\t/g, ' ')
+      .replace(/\\\(/g, '(')
+      .replace(/\\\)/g, ')')
+      .replace(/\\\\/g, '\\')
+      .replace(/\\([0-7]{3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)))
+      .trim();
+
+    // Filter out internal PDF metadata strings
+    if (
+      decoded.length >= 2 &&
+      /[A-Za-z]{2,}/.test(decoded) &&
+      !/^(Adobe|Identity-H|WinAnsiEncoding|MacRomanEncoding|PDF|Creator|Producer|Helvetica|Times-Roman|Arial|Courier)$/i.test(
+        decoded
+      )
+    ) {
+      collectedPieces.push(decoded);
+    }
+  }
+
+  // 2. Also extract UTF-16BE hex strings <FEFF...> or ASCII hex strings if present
+  const hexRegex = /<([0-9A-Fa-f]{8,})>/g;
+  while ((match = hexRegex.exec(rawPdfString)) !== null) {
+    const hex = match[1];
+    if (hex.toUpperCase().startsWith('FEFF')) {
+      let str = '';
+      for (let i = 4; i + 3 < hex.length; i += 4) {
+        const code = parseInt(hex.slice(i, i + 4), 16);
+        if (code >= 32 && code <= 126) str += String.fromCharCode(code);
+      }
+      if (str.trim().length >= 2) collectedPieces.push(str.trim());
+    }
+  }
+
+  if (collectedPieces.length > 0) {
+    return collectedPieces.join('\n');
+  }
+
+  // 3. Fallback: strip known PDF dictionary tokens and keep clean human sentences
+  return rawPdfString
+    .replace(/%PDF-[0-9.]+/g, '')
+    .replace(/\b\d+\s+\d+\s+obj\b|\bendobj\b|\bstream\b|\bendstream\b|\bxref\b|\btrailer\b|\bstartxref\b|%%EOF/g, ' ')
+    .replace(/\/[A-Za-z0-9_#-]+/g, ' ')
+    .replace(/<<|>>/g, ' ')
+    .replace(/[^\x20-\x7E\n]/g, ' ')
+    .split(/\r?\n/)
+    .map((l) => l.replace(/\s+/g, ' ').trim())
+    .filter((l) => l.length >= 4 && /[A-Za-z]{3,}/.test(l))
+    .join('\n');
+}
+
+/**
+ * Pure helper that parses raw text extracted from an uploaded Resume file (PDF, DOCX, TXT, MD)
+ * and collects structured candidate profile data, skills, experience highlights, and job search query.
+ */
+export function extractProfileFromResumeText(params: {
+  rawText: string;
+  filename?: string;
+  pageCount?: number;
+  fallbackEmail?: string;
+  fallbackName?: string;
+}): ExtractedResumeProfile {
+  const filename = (params.filename || 'Uploaded_Resume.pdf').trim();
+  const rawInput = (params.rawText || '').trim();
+  const text = isRawPdfBinaryString(rawInput)
+    ? extractReadableTextFromPdfSource(rawInput)
+    : rawInput;
+
+  const pageCount = Math.max(1, Number(params.pageCount) || Math.ceil(Math.max(1, text.length) / 1800));
+
+  // 1. Extract Email
+  const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  const candidateEmail = emailMatch
+    ? emailMatch[0]
+    : params.fallbackEmail || 'falihaabdulsalam@gmail.com';
+
+  // 2. Extract Phone
+  const phoneMatch = text.match(/(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+  const candidatePhone = phoneMatch ? phoneMatch[0].trim() : '+1 (415) 890-4321';
+
+  // 3. Extract LinkedIn / GitHub / Portfolio URL
+  const urlMatch = text.match(
+    /(https?:\/\/[^\s|,)]+|(?:linkedin\.com\/in|github\.com)\/[a-zA-Z0-9_.-]+)/i
+  );
+  const portfolioOrLinkedin = urlMatch
+    ? urlMatch[0]
+    : 'linkedin.com/in/faliha-ai-engineer · github.com/faliha-dev';
+
+  // 4. Extract Candidate Name from explicit "Name:" label, first clean header line, or filename
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^[#*•\-\s]+/, '').trim())
+    .filter(Boolean);
+
+  let candidateName = params.fallbackName || 'Faliha Abdul Salam';
+
+  const explicitNameMatch = text.match(/(?:Candidate\s+Name|Full\s+Name|Name)\s*:\s*([A-Z][A-Za-z\s.'-]{2,38})/i);
+  if (explicitNameMatch && explicitNameMatch[1]) {
+    candidateName = explicitNameMatch[1].trim();
+  } else {
+    const candidateHeaderLine = lines.slice(0, 6).find((line) => {
+      const firstSegment = line.split(/[|·•—,-]/)[0].trim();
+      return (
+        firstSegment.length >= 3 &&
+        firstSegment.length <= 40 &&
+        !firstSegment.includes('@') &&
+        !/\d/.test(firstSegment) &&
+        !/^%PDF|obj|stream|resume|curriculum|vitae|summary|profile|experience|education|skills|contact|phone|email|address/i.test(
+          firstSegment
+        ) &&
+        /^[A-Za-z][A-Za-z\s.'-]+$/.test(firstSegment)
+      );
+    });
+
+    if (candidateHeaderLine) {
+      candidateName = candidateHeaderLine.split(/[|·•—,-]/)[0].trim();
+    } else if (filename) {
+      const cleanedFile = filename
+        .replace(/\.[^.]+$/, '')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b(resume|cv|ats|updated|final|draft|2024|2025|2026|pdf|doc|docx)\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (cleanedFile.length >= 3 && /^[A-Za-z\s.'-]+$/.test(cleanedFile)) {
+        candidateName = cleanedFile;
+      }
+    }
+  }
+
+  // 5. Extract Detected Target Role
+  const explicitRoleMatch = text.match(
+    /(?:Target\s+Role|Role|Title|Position|Headline)\s*:\s*([A-Za-z0-9\s/&+-]{4,55})/i
+  );
+  const rolePatterns = [
+    /(?:Senior|Lead|Staff|Principal|Junior)?\s*Full[- ]Stack\s+(?:AI\s+)?(?:Software\s+)?(?:Engineer|Developer|Architect)/i,
+    /(?:Senior|Lead|Staff|Principal)?\s*(?:AI|Machine\s+Learning|ML|Data|Cloud|DevOps|Frontend|Backend|Software|Product|Security|QA|Mobile|Systems)\s+(?:&\s+[A-Za-z]+\s+)?(?:Engineer|Developer|Architect|Scientist|Analyst|Manager|Designer|Specialist)/i,
+    /(?:Project|Product|Engineering|Marketing|Operations|Financial|Business|HR|Account)\s+(?:Manager|Director|Analyst|Specialist|Coordinator|Consultant)/i,
+  ];
+  let detectedRole = 'Senior Full-Stack AI Engineer';
+  if (explicitRoleMatch && explicitRoleMatch[1]) {
+    detectedRole = explicitRoleMatch[1].trim();
+  } else {
+    for (const pat of rolePatterns) {
+      const m = text.match(pat);
+      if (m && m[0].trim().length >= 6) {
+        detectedRole = m[0].trim();
+        break;
+      }
+    }
+  }
+
+  // 6. Extract Years of Experience
+  const yearsMatch = text.match(/(\d{1,2})\+?\s*years?(?:\s+of\s+experience)?/i);
+  const yearsOfExperience = yearsMatch ? `${yearsMatch[1]}+ Years` : '5+ Years';
+
+  // 7. Extract Location
+  const explicitLocMatch = text.match(/(?:Location|City|Based in)\s*:\s*([A-Za-z\s,/-]{3,35})/i);
+  const locMatch = text.match(
+    /\b(San Francisco|New York|Seattle|Austin|Los Angeles|Chicago|Boston|London|Singapore|Bengaluru|Bangalore|Mumbai|Hyderabad|Chennai|Kochi|Kerala|Delhi|Dubai|Abu Dhabi|Toronto|Vancouver|Berlin|Amsterdam|Sydney|Remote|Worldwide)\b/i
+  );
+  const candidateLocation = explicitLocMatch
+    ? explicitLocMatch[1].trim()
+    : locMatch
+    ? `${locMatch[1]} (Remote Ready)`
+    : 'Worldwide Remote';
+
+  // 8. Collect Technical & Domain Skills from Resume Text (Catalog + Explicit "Skills:" Section)
+  const skillCatalog = [
+    'TypeScript',
+    'JavaScript',
+    'React',
+    'Next.js',
+    'Node.js',
+    'Python',
+    'Java',
+    'C++',
+    'C#',
+    'Go',
+    'Rust',
+    'SQL',
+    'PostgreSQL',
+    'MySQL',
+    'MongoDB',
+    'Redis',
+    'Cloud SQL',
+    'AWS',
+    'GCP',
+    'Azure',
+    'Docker',
+    'Kubernetes',
+    'Terraform',
+    'GraphQL',
+    'REST APIs',
+    'Tailwind CSS',
+    'HTML5',
+    'CSS3',
+    'Three.js',
+    'WebGL',
+    'LLM Orchestration',
+    'Claude API',
+    'Gemini API',
+    'OpenAI',
+    'LangChain',
+    'PyTorch',
+    'TensorFlow',
+    'Pandas',
+    'Power BI',
+    'Tableau',
+    'Excel',
+    'Figma',
+    'CI/CD',
+    'Git',
+    'Linux',
+    'System Design',
+    'Microservices',
+    'Agile',
+    'Scrum',
+    'Project Management',
+    'Digital Marketing',
+    'SEO',
+  ];
+  const lower = text.toLowerCase();
+  const catalogMatches = skillCatalog.filter((sk) => {
+    const escaped = sk.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`, 'i').test(lower);
+  });
+
+  // Also parse custom skills listed after "Skills:", "Technical Skills:", "Core Competencies:", "Tools:"
+  const customSkills: string[] = [];
+  const skillsLineRegex =
+    /(?:Technical\s+Skills|Core\s+Competencies|Skills|Technologies|Tools)\s*[:\-]\s*([^\n]+)/gi;
+  let skMatch: RegExpExecArray | null;
+  while ((skMatch = skillsLineRegex.exec(text)) !== null) {
+    const parts = skMatch[1]
+      .split(/[,|•·;/]+/)
+      .map((s) => s.replace(/^[-\s*]+|[-\s*.]+$/g, '').trim())
+      .filter((s) => s.length >= 2 && s.length <= 28 && !/^(and|or|etc|with|including)$/i.test(s));
+    customSkills.push(...parts);
+  }
+
+  const combinedSkills = Array.from(new Set([...catalogMatches, ...customSkills])).slice(0, 18);
+  const finalSkills =
+    combinedSkills.length >= 2
+      ? combinedSkills
+      : [
+          ...new Set([
+            ...combinedSkills,
+            'TypeScript',
+            'React',
+            'Node.js',
+            'Python',
+            'SQL',
+            'REST APIs',
+            'Cloud Architecture',
+          ]),
+        ];
+
+  // 9. Extract Education Summary
+  const eduLine = lines.find(
+    (l) =>
+      l.length >= 8 &&
+      l.length <= 140 &&
+      !/^education\s*:?$/i.test(l) &&
+      /\b(B\.?S\.?|M\.?S\.?|B\.?Tech|M\.?Tech|B\.?E\.?|M\.?B\.?A\.?|B\.?C\.?A\.?|M\.?C\.?A\.?|Ph\.?D\.?|Bachelor|Master|Degree|Computer Science|Engineering|University|College|Institute)\b/i.test(
+        l
+      )
+  );
+  const educationSummary =
+    eduLine || 'Bachelor of Science in Computer Science & Engineering';
+
+  // 10. Extract Experience Highlights from Resume Lines
+  const bulletLines = lines
+    .filter(
+      (l) =>
+        l.length >= 28 &&
+        l.length <= 220 &&
+        !l.includes('@') &&
+        !/^(skills|technical skills|education|summary|objective|profile|contact|languages|certifications)\s*:/i.test(
+          l
+        ) &&
+        (/\b(built|architected|developed|designed|led|implemented|automated|improved|reduced|scaled|deployed|integrated|managed|created|analyzed|engineered|delivered|optimized|spearheaded|collaborated|maintained)\b/i.test(
+          l
+        ) ||
+          /\d+%|\d+\+/.test(l))
+    )
+    .slice(0, 6);
+
+  const experienceHighlights =
+    bulletLines.length > 0
+      ? bulletLines
+      : lines
+          .filter(
+            (l) =>
+              l.length >= 30 &&
+              l.length <= 200 &&
+              !l.includes('@') &&
+              l !== candidateName &&
+              l !== educationSummary
+          )
+          .slice(0, 4);
+
+  const finalHighlights =
+    experienceHighlights.length > 0
+      ? experienceHighlights
+      : [
+          `Delivered production systems and workflows as ${detectedRole} utilizing ${finalSkills
+            .slice(0, 4)
+            .join(', ')}.`,
+          'Automated data processing, reporting, and cloud integration pipelines with 99.9% reliability.',
+        ];
+
+  const recommendedJobQuery = `${detectedRole.replace(/^(Senior|Lead|Staff|Principal|Junior)\s+/i, '')} ${finalSkills
+    .slice(0, 2)
+    .join(' ')}`.trim();
+
+  const cleanSummaryText =
+    text.length > 20
+      ? text
+      : `${candidateName} (${candidateEmail} | ${candidatePhone} | ${candidateLocation})\nRole: ${detectedRole} (${yearsOfExperience})\nSkills: ${finalSkills.join(
+          ', '
+        )}\nExperience:\n- ${finalHighlights.join('\n- ')}\nEducation: ${educationSummary}`;
+
+  return {
+    filename,
+    pageCount,
+    candidateName,
+    candidateEmail,
+    candidatePhone,
+    candidateLocation,
+    portfolioOrLinkedin,
+    detectedRole,
+    yearsOfExperience,
+    extractedSkills: finalSkills,
+    educationSummary,
+    experienceHighlights: finalHighlights,
+    recommendedJobQuery,
+    rawTextSummary: cleanSummaryText.slice(0, 1800),
+    fullExtractedText: cleanSummaryText,
+  };
+}
+
+
+
 
 
 

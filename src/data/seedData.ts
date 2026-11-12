@@ -7,56 +7,75 @@ import {
 } from '../types/claude';
 
 export const CLAUDE_MODELS: FreeAiModelSpec[] = [
-  // 1. Anthropic Claude Family ($0 Free Routed)
+  // 1. Anthropic Claude 5 Series ($0 Free Routed — Legacy Claude 3.7 Officially Retired)
   {
-    id: 'claude-3-7-sonnet',
-    name: 'Claude 3.7 Sonnet (Argon · Free)',
+    id: 'claude-sonnet-5-5',
+    name: 'Claude Sonnet 5.5 (Argon · Free)',
     provider: 'Anthropic',
     geminiModel: 'gemini-4-argon',
-    badge: 'Hybrid Reasoning',
+    badge: 'Claude 5 Flagship',
     costBadge: '$0.00 · Free Forever',
-    contextWindow: '200K tokens',
-    description: 'Complex coding, interactive Artifacts, STEM reasoning, and Extended Thinking.',
+    contextWindow: '500K tokens',
+    description:
+      'Next-gen hybrid extended reasoning, autonomous full-stack coding, interactive Artifacts, and live Search/Maps grounding.',
     personaPrompt:
-      'You are operating as Claude 3.7 Sonnet with hybrid reasoning and interactive Artifact synthesis.',
+      'You are operating as Claude Sonnet 5.5, Anthropic’s flagship Claude 5 series model with hybrid extended thinking and interactive Artifact synthesis.',
     defaultExtendedThinking: true,
   },
   {
-    id: 'claude-3-opus',
-    name: 'Claude 3 Opus (Carbon · Free)',
+    id: 'claude-opus-5-5',
+    name: 'Claude Opus 5.5 (Carbon · Free)',
     provider: 'Anthropic',
     geminiModel: 'gemini-4-carbon',
-    badge: 'Deep Nuance',
+    badge: 'Frontier Research',
     costBadge: '$0.00 · Free Forever',
-    contextWindow: '200K tokens',
-    description: 'Deepest multi-step reasoning, literary synthesis, and strategic analysis.',
+    contextWindow: '500K tokens',
+    description:
+      'Deepest frontier scientific synthesis, formal mathematical proofs, and multi-layered strategic reasoning.',
     personaPrompt:
-      'You are operating as Claude 3 Opus, specializing in literary depth, first-principles synthesis, and exhaustive rigor.',
+      'You are operating as Claude Opus 5.5, Anthropic’s frontier research model specializing in first-principles rigor, formal verification, and deep synthesis.',
     defaultExtendedThinking: true,
   },
   {
-    id: 'claude-3-5-sonnet',
-    name: 'Claude 3.5 Sonnet (Flash 3.8 · Free)',
+    id: 'claude-fable-5-2',
+    name: 'Claude Fable 5.2 (Storyteller · Free)',
     provider: 'Anthropic',
-    geminiModel: 'gemini-3.8-flash',
-    badge: 'Balanced + Grounding',
+    geminiModel: 'gemini-4-argon',
+    badge: 'Literary & Fables',
     costBadge: '$0.00 · Free Forever',
-    contextWindow: '200K tokens',
-    description: 'High-speed intelligence with Google Search, Google Maps, and PDF reading.',
+    contextWindow: '500K tokens',
+    description:
+      'Purpose-built Claude 5 model for interactive fables, lyrical storytelling, dramatic scripts, and expressive voice narration.',
     personaPrompt:
-      'You are operating as Claude 3.5 Sonnet, delivering fast, grounded, high-precision engineering and analytical responses.',
+      'You are operating as Claude Fable 5.2, Anthropic’s dedicated literary and interactive storytelling model in the Claude 5 series.',
+    defaultExtendedThinking: true,
   },
   {
-    id: 'claude-3-5-haiku',
-    name: 'Claude 3.5 Haiku (Flash Lite · Free)',
+    id: 'claude-mythos-5-2',
+    name: 'Claude Mythos 5.2 (Worldbuilder · Free)',
+    provider: 'Anthropic',
+    geminiModel: 'gemini-4-carbon',
+    badge: 'Mythic Lore & 3D',
+    costBadge: '$0.00 · Free Forever',
+    contextWindow: '500K tokens',
+    description:
+      'Specialized in deep worldbuilding, mythic lore ecosystems, RPG narrative design, and 3D spatial scene direction.',
+    personaPrompt:
+      'You are operating as Claude Mythos 5.2, Anthropic’s worldbuilding, mythology, and 3D spatial narrative architect in the Claude 5 series.',
+    defaultExtendedThinking: true,
+  },
+  {
+    id: 'claude-haiku-5-5',
+    name: 'Claude Haiku 5.5 (Flash Lite · Free)',
     provider: 'Anthropic',
     geminiModel: 'gemini-3.1-flash-lite',
-    badge: 'Ultra Fast',
+    badge: 'Sub-Second 5.5',
     costBadge: '$0.00 · Free Forever',
     contextWindow: '200K tokens',
-    description: 'Sub-second responses for quick drafting, classification, and rapid iteration.',
+    description:
+      'Ultra-low-latency Claude 5.5 intelligence for instant drafting, live PDF extraction, and rapid iteration.',
     personaPrompt:
-      'You are operating as Claude 3.5 Haiku, optimized for ultra-fast, crisp, low-latency answers.',
+      'You are operating as Claude Haiku 5.5, optimized for sub-second speed and high-signal precision.',
   },
 
   // 2. Google Gemini Family (Native Free Tier)

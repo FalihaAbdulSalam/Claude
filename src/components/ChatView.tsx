@@ -372,7 +372,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               placeholder="Attach a PDF document, enable Web/Maps grounding, or ask any of the 16 free AI models..."
             />
 
-            {/* Universal 16 Free AI Models ($0.00) Selector Strip */}
+            {/* Universal 17 Free AI Models ($0.00) Selector Strip — Led by Anthropic Claude 5 Series */}
             <div
               data-testid="chat-free-models-strip"
               className="mt-5 rounded-2xl bg-[#F3F1EA] dark:bg-[#21201E] border border-[#E5E2D9] dark:border-[#2C2B28] p-3.5 space-y-2.5"
@@ -380,7 +380,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-xs font-semibold text-[#191918] dark:text-[#ECEAE2]">
                   <Sparkles className="w-3.5 h-3.5 text-[#C96442]" />
-                  <span>All 16 AI Models Included ($0.00 Free Forever — No Paid Key Needed)</span>
+                  <span>
+                    Claude 5 Series (Fable 5.2 · Mythos 5.2 · Opus 5.5 · Sonnet 5.5 · Haiku 5.5) + All AI Models ($0.00 Free)
+                  </span>
                 </div>
                 <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-[#E6F2EC] dark:bg-[#1E352B] text-[#2E5A44] dark:text-[#7AD1A5]">
                   Active: {currentModel.name} ({currentModel.provider})

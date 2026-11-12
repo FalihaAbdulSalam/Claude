@@ -18,6 +18,7 @@ import {
   Compass,
   Box,
   BookOpen,
+  Briefcase,
   LogIn,
   LogOut,
 } from 'lucide-react';
@@ -149,6 +150,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }`}
           >
             <BookOpen className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectSection('career')}
+            aria-label="ATS Jobs & Creator Monetization"
+            title="ATS Jobs & Creator Monetization"
+            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+              activeSection === 'career'
+                ? 'bg-[#E5E1D6] dark:bg-[#2A2926] text-[#191918] dark:text-[#ECEAE2]'
+                : 'text-[#5A5955] dark:text-[#A3A19A] hover:bg-[#E7E4DA] dark:hover:bg-[#232220]'
+            }`}
+          >
+            <Briefcase className="w-4 h-4" />
           </button>
 
           <button
@@ -299,6 +314,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </span>
           <span className="text-[10px] font-claude-mono px-1.5 py-0.5 rounded bg-[#C96442]/15 text-[#C96442] font-semibold">
             FREE
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSelectSection('career')}
+          data-testid="nav-career-creator"
+          className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            activeSection === 'career'
+              ? 'bg-[#E5E1D6] dark:bg-[#262522] text-[#191918] dark:text-[#ECEAE2] font-medium'
+              : 'text-[#4A4945] dark:text-[#B5B3AA] hover:bg-[#EAE7DD] dark:hover:bg-[#1F1E1C]'
+          }`}
+        >
+          <span className="flex items-center gap-2.5">
+            <Briefcase className="w-4 h-4 text-[#2D6A4F] dark:text-[#52B788]" />
+            <span>ATS Jobs &amp; Creator $$$</span>
+          </span>
+          <span className="text-[10px] font-claude-mono px-1.5 py-0.5 rounded bg-[#2D6A4F]/15 text-[#2D6A4F] dark:text-[#52B788] font-semibold">
+            AUTO
           </span>
         </button>
 

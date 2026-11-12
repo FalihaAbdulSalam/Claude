@@ -13,8 +13,98 @@ import {
   compute3DCameraPose,
   buildStoryPromptBlueprint,
   formatAnthropicCurlCommand,
+  computeAtsResumeAnalysis,
+  computeCreatorMonetizationEstimate,
+  extractProfileFromResumeText,
+  extractReadableTextFromPdfSource,
+  isRawPdfBinaryString,
 } from './claudeLogic';
 import { ChatThread, ProjectItem } from '../types/claude';
+
+test('extractProfileFromResumeText collects candidate name, email, skills, role, and job query from both plain text and binary PDF streams', () => {
+  const sampleResume = `Faliha Abdul Salam
+falihaabdulsalam@gmail.com | +1 (415) 555-0199 | San Francisco | github.com/faliha-ai
+Senior Full-Stack AI Engineer with 6+ years of experience.
+Skills: TypeScript, React, Node.js, Python, PostgreSQL, Docker, REST APIs, CI/CD.
+Experience:
+- Built scalable AI agent workflows and automated resume pipelines reducing latency by 45%.
+- Architected Cloud SQL PostgreSQL microservices and React 19 dashboards.
+Education:
+B.S. in Computer Science, Stanford University`;
+
+  const extracted = extractProfileFromResumeText({
+    rawText: sampleResume,
+    filename: 'Faliha_Abdul_Salam_Resume_2026.pdf',
+  });
+
+  assert.equal(extracted.candidateName, 'Faliha Abdul Salam');
+  assert.equal(extracted.candidateEmail, 'falihaabdulsalam@gmail.com');
+  assert.ok(extracted.detectedRole.includes('Senior Full-Stack AI Engineer'));
+  assert.equal(extracted.yearsOfExperience, '6+ Years');
+  assert.ok(extracted.extractedSkills.includes('TypeScript'));
+  assert.ok(extracted.extractedSkills.includes('PostgreSQL'));
+  assert.ok(extracted.educationSummary.includes('Computer Science'));
+  assert.ok(extracted.experienceHighlights.length >= 2);
+  assert.ok(extracted.recommendedJobQuery.length > 5);
+
+  // Also test raw binary PDF stream syntax (%PDF-1.7 ... (...) Tj)
+  const rawBinaryPdf = `%PDF-1.7
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+4 0 obj << /Length 320 >> stream
+BT
+/F1 16 Tf 72 750 Td (Aisha Rahman) Tj
+/F1 11 Tf 0 -18 Td (aisha.rahman@techmail.io | +1 650-444-8899 | Seattle) Tj
+0 -18 Td (Machine Learning Engineer with 7+ years experience) Tj
+0 -18 Td (Technical Skills: Python, PyTorch, TensorFlow, SQL, Docker, AWS, Kubernetes) Tj
+0 -18 Td (- Developed computer vision and LLM inference pipelines improving throughput by 60%.) Tj
+0 -18 Td (M.S. in Computer Science, University of Washington) Tj
+ET
+endstream endobj
+%%EOF`;
+
+  assert.equal(isRawPdfBinaryString(rawBinaryPdf), true);
+  const decodedText = extractReadableTextFromPdfSource(rawBinaryPdf);
+  assert.ok(!decodedText.includes('%PDF-1.7'));
+  assert.ok(decodedText.includes('Aisha Rahman'));
+
+  const pdfExtracted = extractProfileFromResumeText({
+    rawText: rawBinaryPdf,
+    filename: 'Aisha_Rahman_ML_Resume.pdf',
+  });
+  assert.equal(pdfExtracted.candidateName, 'Aisha Rahman');
+  assert.equal(pdfExtracted.candidateEmail, 'aisha.rahman@techmail.io');
+  assert.ok(pdfExtracted.detectedRole.includes('Machine Learning Engineer'));
+  assert.ok(pdfExtracted.extractedSkills.includes('PyTorch'));
+  assert.ok(pdfExtracted.educationSummary.includes('University of Washington'));
+});
+
+test('computeAtsResumeAnalysis and computeCreatorMonetizationEstimate calculate accurate ATS scores and revenue projections', () => {
+  const ats = computeAtsResumeAnalysis({
+    candidateName: 'Faliha Abdul Salam',
+    candidateEmail: 'falihaabdulsalam@gmail.com',
+    targetRole: 'Senior AI Full-Stack Engineer',
+    rawResume: 'Built web apps with React and TypeScript and integrated REST APIs.',
+    jobDescription: 'Looking for TypeScript, React, Node.js, Python, SQL, and Cloud Architecture.',
+  });
+  assert.ok(ats.afterScore >= 95);
+  assert.ok(ats.afterScore > ats.beforeScore);
+  assert.ok(ats.correctedResumeMarkdown.includes('PROFESSIONAL SUMMARY'));
+  assert.ok(ats.coverLetterMarkdown.includes('Senior AI Full-Stack Engineer'));
+
+  const rev = computeCreatorMonetizationEstimate({
+    niche: 'AI Storytelling & Tech Tutorials',
+    monthlyYoutubeViews: 100000,
+    monthlyInstagramViews: 150000,
+    rpmUsd: 14,
+  });
+  assert.ok(rev.youtubeAdsenseMonthlyUsd >= 1400);
+  assert.ok(rev.instagramSponsorshipMonthlyUsd >= 1200);
+  assert.equal(
+    rev.totalMonthlyUsd,
+    rev.youtubeAdsenseMonthlyUsd + rev.instagramSponsorshipMonthlyUsd + rev.affiliateFunnelMonthlyUsd
+  );
+  assert.equal(rev.totalAnnualUsd, rev.totalMonthlyUsd * 12);
+});
 
 test('buildStoryPromptBlueprint and formatAnthropicCurlCommand produce clean structured outputs', () => {
   const blueprint = buildStoryPromptBlueprint({
@@ -100,7 +190,7 @@ test('filterThreads searches titles and message bodies and respects starred filt
     {
       id: 't1',
       title: 'PostgreSQL Indexing Strategy',
-      modelId: 'claude-3-7-sonnet',
+      modelId: 'claude-sonnet-5-5',
       styleId: 'normal',
       extendedThinking: true,
       starred: true,
@@ -111,7 +201,7 @@ test('filterThreads searches titles and message bodies and respects starred filt
     {
       id: 't2',
       title: 'Solar Microgrid Interactive Simulator',
-      modelId: 'claude-3-7-sonnet',
+      modelId: 'claude-fable-5-2',
       styleId: 'explanatory',
       extendedThinking: false,
       starred: false,
@@ -132,7 +222,7 @@ test('filterThreads searches titles and message bodies and respects starred filt
 
 test('buildClaudeSystemInstruction incorporates style, thinking, and project knowledge', () => {
   const sys = buildClaudeSystemInstruction({
-    modelId: 'claude-3-7-sonnet',
+    modelId: 'claude-sonnet-5-5',
     styleId: 'concise',
     extendedThinking: true,
     project: {
@@ -145,6 +235,7 @@ test('buildClaudeSystemInstruction incorporates style, thinking, and project kno
     },
   });
 
+  assert.ok(sys.includes('Claude Sonnet 5.5'));
   assert.ok(sys.includes('high-signal'));
   assert.ok(sys.includes('<thinking>...</thinking>'));
   assert.ok(sys.includes('Prefer terracotta #C96442 accents.'));
@@ -160,18 +251,19 @@ test('deriveThreadTitle truncates long prompts cleanly', () => {
   assert.ok(title.length <= 48);
 });
 
-test('mapClaudeToGeminiModel maps all 16 universal free AI models and enforces gemini-3.8-flash for Search/Maps grounding', () => {
-  assert.equal(mapClaudeToGeminiModel('claude-3-opus'), 'gemini-4-carbon');
+test('mapClaudeToGeminiModel maps Claude 5 series and all 17 universal free AI models', () => {
+  assert.equal(mapClaudeToGeminiModel('claude-opus-5-5'), 'gemini-4-carbon');
+  assert.equal(mapClaudeToGeminiModel('claude-mythos-5-2'), 'gemini-4-carbon');
   assert.equal(mapClaudeToGeminiModel('qwen-2-5-coder'), 'gemini-4-carbon');
-  assert.equal(mapClaudeToGeminiModel('claude-3-7-sonnet'), 'gemini-4-argon');
+  assert.equal(mapClaudeToGeminiModel('claude-sonnet-5-5'), 'gemini-4-argon');
+  assert.equal(mapClaudeToGeminiModel('claude-fable-5-2'), 'gemini-4-argon');
   assert.equal(mapClaudeToGeminiModel('deepseek-r1'), 'gemini-4-argon');
   assert.equal(mapClaudeToGeminiModel('openai-o3-mini'), 'gemini-4-argon');
-  assert.equal(mapClaudeToGeminiModel('claude-3-5-sonnet'), 'gemini-3.8-flash');
   assert.equal(mapClaudeToGeminiModel('gpt-4o-omni'), 'gemini-3.8-flash');
   assert.equal(mapClaudeToGeminiModel('llama-3-3-70b'), 'gemini-3.8-flash');
-  assert.equal(mapClaudeToGeminiModel('claude-3-5-haiku'), 'gemini-3.1-flash-lite');
+  assert.equal(mapClaudeToGeminiModel('claude-haiku-5-5'), 'gemini-3.1-flash-lite');
   assert.equal(
-    mapClaudeToGeminiModel('claude-3-opus', { useGoogleSearch: true }),
+    mapClaudeToGeminiModel('claude-opus-5-5', { useGoogleSearch: true }),
     'gemini-3.8-flash'
   );
   assert.equal(
@@ -179,13 +271,13 @@ test('mapClaudeToGeminiModel maps all 16 universal free AI models and enforces g
     'gemini-3.8-flash'
   );
 
-  const deepseekSys = buildClaudeSystemInstruction({
-    modelId: 'deepseek-r1',
+  const fableSys = buildClaudeSystemInstruction({
+    modelId: 'claude-fable-5-2',
     styleId: 'normal',
-    extendedThinking: false,
+    extendedThinking: true,
   });
-  assert.ok(deepseekSys.includes('DeepSeek-R1'));
-  assert.ok(deepseekSys.includes('<thinking>...</thinking>'));
+  assert.ok(fableSys.includes('Claude Fable 5.2'));
+  assert.ok(fableSys.includes('<thinking>...</thinking>'));
 });
 
 test('estimatePdfMetrics and computeArenaOrbCollection work deterministically', () => {

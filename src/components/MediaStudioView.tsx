@@ -25,6 +25,7 @@ interface MediaStudioViewProps {
   onAskClaudeWithPdf: (doc: AnalyzedPdfDocument, customPrompt?: string) => void;
   projects: ProjectItem[];
   onAddPdfToProject: (projectId: string, doc: AnalyzedPdfDocument) => void;
+  onSendPdfToCareerAutoApply?: (doc: AnalyzedPdfDocument) => void;
 }
 
 type StudioTab = 'pdf' | 'image' | 'video' | 'music' | 'voice';
@@ -35,6 +36,7 @@ export const MediaStudioView: React.FC<MediaStudioViewProps> = ({
   onAskClaudeWithPdf,
   projects,
   onAddPdfToProject,
+  onSendPdfToCareerAutoApply,
 }) => {
   const [activeTab, setActiveTab] = useState<StudioTab>('pdf');
 
@@ -597,6 +599,18 @@ export const MediaStudioView: React.FC<MediaStudioViewProps> = ({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
+                      {onSendPdfToCareerAutoApply && (
+                        <button
+                          type="button"
+                          data-testid="pdf-studio-send-to-auto-apply-btn"
+                          onClick={() => onSendPdfToCareerAutoApply(selectedPdf)}
+                          className="px-3 py-1.5 rounded-lg bg-[#2D6A4F] hover:bg-[#23533D] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Collect Data &amp; Auto-Apply Jobs</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={handleReanalyzeSelectedPdf}

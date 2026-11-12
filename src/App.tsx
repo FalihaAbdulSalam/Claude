@@ -32,6 +32,7 @@ import { MediaStudioView } from './components/MediaStudioView';
 import { MapsExplorerView } from './components/MapsExplorerView';
 import { ThreeSpatialGameView } from './components/ThreeSpatialGameView';
 import { FableAndFreeApisView } from './components/FableAndFreeApisView';
+import { CareerAndCreatorView } from './components/CareerAndCreatorView';
 
 const STORAGE_KEYS = {
   THREADS: 'claude_workspace_threads_v2',
@@ -115,8 +116,8 @@ export default function App() {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
-  // Composer defaults when starting a new conversation
-  const [selectedModelId, setSelectedModelId] = useState<ClaudeModelId>('claude-3-7-sonnet');
+  // Composer defaults when starting a new conversation (Claude 5 Series Flagship)
+  const [selectedModelId, setSelectedModelId] = useState<ClaudeModelId>('claude-sonnet-5-5');
   const [selectedStyleId, setSelectedStyleId] = useState<WritingStyleId>('normal');
   const [extendedThinking, setExtendedThinking] = useState<boolean>(true);
   const [useGoogleSearch, setUseGoogleSearch] = useState<boolean>(false);
@@ -158,7 +159,7 @@ export default function App() {
                   id: row.id,
                   title: row.title,
                   projectId: row.projectId,
-                  modelId: row.modelId || 'claude-3-7-sonnet',
+                  modelId: row.modelId || 'claude-sonnet-5-5',
                   styleId: row.styleId || 'normal',
                   extendedThinking: Boolean(row.extendedThinking),
                   starred: Boolean(row.starred),
@@ -815,6 +816,10 @@ export default function App() {
                 content: `${doc.summary}\n\n${doc.extractedText}`,
               });
             }}
+            onSendPdfToCareerAutoApply={(doc) => {
+              handleAddOrUpdatePdfDocument(doc);
+              setActiveSection('career');
+            }}
           />
         )}
 
@@ -888,6 +893,24 @@ export default function App() {
 
         {activeSection === 'spatial3d' && (
           <ThreeSpatialGameView autoStart={isAutoStart3D} />
+        )}
+
+        {activeSection === 'career' && (
+          <CareerAndCreatorView
+            userEmail={currentUser?.email}
+            userDisplayName={currentUser?.displayName}
+            pdfDocuments={pdfDocuments}
+            onAddPdfDocument={handleAddOrUpdatePdfDocument}
+            onSendToChat={(promptText) => {
+              setActiveSection('chat');
+              setActiveThreadId(null);
+              setActiveArtifact(null);
+              setTimeout(() => {
+                handleSendMessage(promptText, [], true);
+              }, 30);
+            }}
+            onOpen3DStudio={() => setActiveSection('spatial3d')}
+          />
         )}
 
         {/* Split-Screen Artifacts Drawer */}

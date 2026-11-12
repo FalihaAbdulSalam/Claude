@@ -205,7 +205,7 @@ const MODEL_PROVIDER_FILTERS: Array<'All Providers' | AiModelProvider> = [
 export const FableAndFreeApisView: React.FC<FableAndFreeApisViewProps> = ({
   projects,
   activeProjectId,
-  selectedModelId = 'claude-3-7-sonnet',
+  selectedModelId = 'claude-sonnet-5-5',
   onSelectModelForChat,
   onSendToChat,
   onAddKnowledgeDoc,
@@ -224,9 +224,9 @@ export const FableAndFreeApisView: React.FC<FableAndFreeApisViewProps> = ({
   );
   const [arenaPrompt, setArenaPrompt] = useState<string>('');
   const [arenaSelectedModels, setArenaSelectedModels] = useState<ClaudeModelId[]>([
-    'claude-3-7-sonnet',
-    'deepseek-r1',
-    'gpt-4o-omni',
+    'claude-sonnet-5-5',
+    'claude-fable-5-2',
+    'claude-mythos-5-2',
   ]);
   const [arenaResults, setArenaResults] = useState<ModelArenaComparisonItem[]>([]);
   const [isRunningArena, setIsRunningArena] = useState<boolean>(false);
@@ -622,13 +622,13 @@ export const FableAndFreeApisView: React.FC<FableAndFreeApisViewProps> = ({
           <div className="space-y-1.5">
             <div className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-[#C96442]">
               <Cpu className="w-3.5 h-3.5" />
-              <span>$0.00 Universal AI Models · Fable Studio &amp; Free APIs</span>
+              <span>Claude 5 Series Lineup · $0.00 Universal AI Models · Fable Studio</span>
             </div>
             <h1 className="font-claude-serif text-2xl sm:text-3xl font-semibold tracking-tight text-[#141413] dark:text-[#F4F3EE]">
-              All 16 Free AI Models, Fable Studio &amp; Live APIs
+              Claude 5 Series &amp; All 17 Free AI Models
             </h1>
             <p className="text-sm text-[#6B6962] dark:text-[#9E9C94] max-w-2xl">
-              Use all 16 major AI models (Claude 3.7/Opus, Gemini 4, GPT-4o, OpenAI o3-mini, DeepSeek-R1 671B, Llama 3.3, Mistral, Qwen 2.5, Grok 3) for <strong>$0.00 / 100% Free Forever</strong>—no credit card or paid keys needed.
+              Featuring Anthropic’s latest <strong>Claude 5 Series</strong> (<strong>Claude Fable 5.2</strong>, <strong>Claude Mythos 5.2</strong>, <strong>Claude Opus 5.5</strong>, <strong>Claude Sonnet 5.5</strong>, and <strong>Claude Haiku 5.5</strong> — replacing retired Claude 3.7 models) plus Gemini 4, GPT-4o, o3-mini, DeepSeek-R1, Llama 3.3, Mistral, Qwen, and Grok 3 for <strong>$0.00 / 100% Free Forever</strong>.
             </p>
           </div>
 
@@ -646,7 +646,7 @@ export const FableAndFreeApisView: React.FC<FableAndFreeApisViewProps> = ({
                 }`}
               >
                 <Cpu className="w-3.5 h-3.5" />
-                <span>All 16 AI Models ($0 Free)</span>
+                <span>Claude 5 &amp; All AI Models ($0)</span>
               </button>
               <button
                 type="button"
